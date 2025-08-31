@@ -155,7 +155,7 @@ func TestQuietIntegration(t *testing.T) {
 	_ = m
 
 	// 验证函数签名正确
-	var testRunFunc RunFunc = runFunc
+	var testRunFunc = runFunc
 	_ = testRunFunc
 
 	t.Log("集成测试通过：Quiet() 返回了正确类型的函数")

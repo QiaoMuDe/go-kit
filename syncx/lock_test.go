@@ -383,12 +383,12 @@ func TestFileLocks_TypeSignature(t *testing.T) {
 	var fl FileLocks
 
 	// 验证 Lock 方法签名
-	var lockMethod func(string) func() = fl.Lock
+	var lockMethod = fl.Lock
 	_ = lockMethod
 
 	// 验证返回的解锁函数
 	unlock := fl.Lock("signature-test.txt")
-	var unlockFunc func() = unlock
+	var unlockFunc = unlock
 	_ = unlockFunc
 
 	unlock()
