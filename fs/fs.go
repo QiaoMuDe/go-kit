@@ -101,6 +101,7 @@ func walkDir(dirPath string, recursive bool) ([]string, error) {
 
 	var files []string
 
+	// 递归模式
 	if recursive {
 		err := filepath.WalkDir(dirPath, func(path string, d os.DirEntry, err error) error {
 			// 快速失败：遇到错误立即返回
@@ -143,7 +144,7 @@ func walkDir(dirPath string, recursive bool) ([]string, error) {
 	return files, nil
 }
 
-// FindFiles 收集指定路径下的所有文件
+// Collect 收集指定路径下的所有文件
 // 用于收集文件或目录中的文件，支持通配符匹配和递归遍历
 //
 // 参数:
@@ -153,7 +154,7 @@ func walkDir(dirPath string, recursive bool) ([]string, error) {
 // 返回:
 //   - []string: 收集到的文件路径切片
 //   - error: 收集失败时返回错误
-func FindFiles(targetPath string, recursive bool) ([]string, error) {
+func Collect(targetPath string, recursive bool) ([]string, error) {
 	// 快速失败：检查路径是否为空
 	if targetPath == "" {
 		return nil, fmt.Errorf("target path cannot be empty")
@@ -183,6 +184,7 @@ func collectGlobFiles(pattern string, recursive bool) ([]string, error) {
 		return nil, fmt.Errorf("glob pattern cannot be empty")
 	}
 
+	// 匹配通配符
 	matchedFiles, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("invalid path pattern %q: %w", pattern, err)

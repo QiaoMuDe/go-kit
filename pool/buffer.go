@@ -72,6 +72,26 @@ func DrainBuffer() {
 	defaultBufferPool.Drain()
 }
 
+// WithBuffer 使用字节缓冲区执行函数，自动管理获取和归还
+//
+// 参数:
+//   - capacity: 字节缓冲区初始容量大小
+//   - fn: 使用字节缓冲区的函数
+//
+// 返回值:
+//   - []byte: 函数执行后缓冲区的字节数据副本
+//
+// 使用示例:
+//
+//	data := pool.WithBuffer(1024, func(buf *bytes.Buffer) {
+//	    buf.WriteString("Hello")
+//	    buf.WriteByte(' ')
+//	    buf.WriteString("World")
+//	})
+func WithBuffer(capacity int, fn func(*bytes.Buffer)) []byte {
+	return defaultBufferPool.WithBuffer(capacity, fn)
+}
+
 // BufferPool 字节缓冲区对象池，支持自定义配置
 type BufferPool struct {
 	pool        sync.Pool // 字节缓冲区对象池
@@ -252,4 +272,30 @@ func (bp *BufferPool) Drain() {
 			return buffer
 		},
 	}
+}
+
+// WithBuffer 使用字节缓冲区执行函数，自动管理获取和归还
+//
+// 参数:
+//   - capacity: 字节缓冲区初始容量大小
+//   - fn: 使用字节缓冲区的函数
+//
+// 返回值:
+//   - []byte: 函数执行后缓冲区的字节数据副本
+//
+// 说明:
+//   - 自动从对象池获取字节缓冲区
+//   - 执行用户提供的函数
+//   - 获取缓冲区字节数据的副本
+//   - 自动归还字节缓冲区到对象池
+//   - 即使函数发生panic也会正确归还资源
+func (bp *BufferPool) WithBuffer(capacity int, fn func(*bytes.Buffer)) []byte {
+	buffer := bp.Get(capacity)
+	defer bp.Put(buffer)
+
+	fn(buffer)
+	// 返回字节数据的副本，避免在归还后访问
+	result := make([]byte, buffer.Len())
+	copy(result, buffer.Bytes())
+	return result
 }

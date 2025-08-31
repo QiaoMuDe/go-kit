@@ -1,6 +1,7 @@
 package id
 
 import (
+	"crypto/rand"
 	"fmt"
 	"strings"
 	"time"
@@ -32,20 +33,17 @@ func GenID(n int) string {
 		return ts
 	}
 
-	var buf strings.Builder
-	buf.Grow(8 + n) // 预分配空间
-	buf.WriteString(ts)
-
 	// 获取随机数生成器
 	r := pool.GetRand()
 	defer pool.PutRand(r)
 
-	// 生成n位随机数
-	for i := 0; i < n; i++ {
-		buf.WriteByte(chars[r.Intn(62)])
-	}
-
-	return buf.String()
+	return pool.WithString(8+n, func(buf *strings.Builder) {
+		buf.WriteString(ts)
+		// 生成n位随机数
+		for i := 0; i < n; i++ {
+			buf.WriteByte(chars[r.Intn(62)])
+		}
+	})
 }
 
 // GenIDs 批量生成ID
@@ -71,18 +69,14 @@ func GenIDs(count, n int) []string {
 
 		if n == 0 {
 			ids[i] = ts
-			continue
+		} else {
+			ids[i] = pool.WithString(8+n, func(buf *strings.Builder) {
+				buf.WriteString(ts)
+				for j := 0; j < n; j++ {
+					buf.WriteByte(chars[r.Intn(62)])
+				}
+			})
 		}
-
-		var buf strings.Builder
-		buf.Grow(8 + n)
-		buf.WriteString(ts)
-
-		for j := 0; j < n; j++ {
-			buf.WriteByte(chars[r.Intn(62)])
-		}
-
-		ids[i] = buf.String()
 
 		if i < count-1 {
 			time.Sleep(time.Nanosecond)
@@ -111,13 +105,11 @@ func GenWithPrefix(prefix string, n int) string {
 		return id
 	}
 
-	var buf strings.Builder
-	buf.Grow(len(prefix) + len(id) + 1)
-	buf.WriteString(prefix)
-	buf.WriteByte('_')
-	buf.WriteString(id)
-
-	return buf.String()
+	return pool.WithString(len(prefix)+len(id)+1, func(buf *strings.Builder) {
+		buf.WriteString(prefix)
+		buf.WriteByte('_')
+		buf.WriteString(id)
+	})
 }
 
 // Valid 验证ID格式
@@ -160,46 +152,90 @@ func Valid(id string, n int) bool {
 
 // UUID 生成类UUID格式
 // 用于生成类似UUID的字符串，格式为：8-4-4-4-12
+// 使用crypto/rand提供强随机性，确保并发安全和高唯一性
 //
 // 返回:
 //   - 36位长度的UUID格式字符串
 func UUID() string {
-	r := pool.GetRand()
-	defer pool.PutRand(r)
+	// 从字节池获取32字节的缓冲区用于加密安全随机数据
+	randomBytes := pool.GetByte(32)
+	defer pool.PutByte(randomBytes)
 
-	var buf strings.Builder
-	buf.Grow(36) // 32字符 + 4个连字符
+	if _, err := rand.Read(randomBytes); err != nil {
+		// 极少情况下crypto/rand失败时的fallback
+		r := pool.GetRand()
+		defer pool.PutRand(r)
 
-	// 8位
-	for i := 0; i < 8; i++ {
-		buf.WriteByte(chars[r.Intn(62)])
+		return pool.WithString(36, func(buf *strings.Builder) {
+			// 8位
+			for i := 0; i < 8; i++ {
+				buf.WriteByte(chars[r.Intn(62)])
+			}
+			buf.WriteByte('-')
+
+			// 4位
+			for i := 0; i < 4; i++ {
+				buf.WriteByte(chars[r.Intn(62)])
+			}
+			buf.WriteByte('-')
+
+			// 4位
+			for i := 0; i < 4; i++ {
+				buf.WriteByte(chars[r.Intn(62)])
+			}
+			buf.WriteByte('-')
+
+			// 4位
+			for i := 0; i < 4; i++ {
+				buf.WriteByte(chars[r.Intn(62)])
+			}
+			buf.WriteByte('-')
+
+			// 12位
+			for i := 0; i < 12; i++ {
+				buf.WriteByte(chars[r.Intn(62)])
+			}
+		})
 	}
-	buf.WriteByte('-')
 
-	// 4位
-	for i := 0; i < 4; i++ {
-		buf.WriteByte(chars[r.Intn(62)])
-	}
-	buf.WriteByte('-')
+	// 使用crypto/rand生成的随机字节映射到字符集
+	return pool.WithString(36, func(buf *strings.Builder) {
+		byteIndex := 0
 
-	// 4位
-	for i := 0; i < 4; i++ {
-		buf.WriteByte(chars[r.Intn(62)])
-	}
-	buf.WriteByte('-')
+		// 8位
+		for i := 0; i < 8; i++ {
+			buf.WriteByte(chars[randomBytes[byteIndex]%62])
+			byteIndex++
+		}
+		buf.WriteByte('-')
 
-	// 4位
-	for i := 0; i < 4; i++ {
-		buf.WriteByte(chars[r.Intn(62)])
-	}
-	buf.WriteByte('-')
+		// 4位
+		for i := 0; i < 4; i++ {
+			buf.WriteByte(chars[randomBytes[byteIndex]%62])
+			byteIndex++
+		}
+		buf.WriteByte('-')
 
-	// 12位
-	for i := 0; i < 12; i++ {
-		buf.WriteByte(chars[r.Intn(62)])
-	}
+		// 4位
+		for i := 0; i < 4; i++ {
+			buf.WriteByte(chars[randomBytes[byteIndex]%62])
+			byteIndex++
+		}
+		buf.WriteByte('-')
 
-	return buf.String()
+		// 4位
+		for i := 0; i < 4; i++ {
+			buf.WriteByte(chars[randomBytes[byteIndex]%62])
+			byteIndex++
+		}
+		buf.WriteByte('-')
+
+		// 12位
+		for i := 0; i < 12; i++ {
+			buf.WriteByte(chars[randomBytes[byteIndex]%62])
+			byteIndex++
+		}
+	})
 }
 
 // Short 生成短ID

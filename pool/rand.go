@@ -65,3 +65,53 @@ func GetRandWithSeed(seed int64) *rand.Rand {
 	}
 	return rand.New(rand.NewSource(seed))
 }
+
+// WithRand 使用随机数生成器执行函数，自动管理获取和归还
+//
+// 参数:
+//   - fn: 使用随机数生成器的函数
+//
+// 返回值:
+//   - T: 函数返回的结果
+//
+// 使用示例:
+//
+//	// 生成随机整数
+//	num := pool.WithRand(func(rng *rand.Rand) int {
+//	    return rng.Intn(100)
+//	})
+//
+//	// 生成随机字符串
+//	str := pool.WithRand(func(rng *rand.Rand) string {
+//	    return fmt.Sprintf("id_%d", rng.Int63())
+//	})
+func WithRand[T any](fn func(*rand.Rand) T) T {
+	rng := GetRand()
+	defer PutRand(rng)
+	return fn(rng)
+}
+
+// WithRandSeed 使用指定种子的随机数生成器执行函数，自动管理获取和归还
+//
+// 参数:
+//   - seed: 随机数种子
+//   - fn: 使用随机数生成器的函数
+//
+// 返回值:
+//   - T: 函数返回的结果
+//
+// 使用示例:
+//
+//	// 生成可重现的随机序列
+//	nums := pool.WithRandSeed(12345, func(rng *rand.Rand) []int {
+//	    result := make([]int, 5)
+//	    for i := range result {
+//	        result[i] = rng.Intn(100)
+//	    }
+//	    return result
+//	})
+func WithRandSeed[T any](seed int64, fn func(*rand.Rand) T) T {
+	rng := GetRandWithSeed(seed)
+	defer PutRand(rng)
+	return fn(rng)
+}

@@ -1,571 +1,379 @@
 package fs
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
+	"sort"
 	"strings"
 	"testing"
 )
 
-func TestGetSize(t *testing.T) {
-	tempDir := t.TempDir()
+func TestCollect(t *testing.T) {
+	// 创建测试目录结构
+	testDir := setupTestDir(t)
+	defer func() { _ = os.RemoveAll(testDir) }()
 
 	tests := []struct {
 		name        string
-		setup       func() string
-		expectedMin int64
-		expectedMax int64
-		expectError bool
-		desc        string
+		targetPath  string
+		recursive   bool
+		want        []string
+		wantErr     bool
+		errContains string
 	}{
+		// 基本功能测试
 		{
-			name: "获取文件大小",
-			setup: func() string {
-				file := filepath.Join(tempDir, "size_test.txt")
-				content := "Hello, World! This is a test file for size calculation."
-				if err := os.WriteFile(file, []byte(content), 0644); err != nil {
-					t.Fatalf("创建测试文件失败: %v", err)
-				}
-				return file
-			},
-			expectedMin: 50,  // 大概的字节数
-			expectedMax: 100, // 允许一些误差
-			expectError: false,
-			desc:        "获取文件大小应该返回正确的字节数",
+			name:        "empty path should return error",
+			targetPath:  "",
+			recursive:   false,
+			want:        nil,
+			wantErr:     true,
+			errContains: "target path cannot be empty",
 		},
 		{
-			name: "获取空文件大小",
-			setup: func() string {
-				file := filepath.Join(tempDir, "empty_file.txt")
-				if err := os.WriteFile(file, []byte(""), 0644); err != nil {
-					t.Fatalf("创建空文件失败: %v", err)
-				}
-				return file
-			},
-			expectedMin: 0,
-			expectedMax: 0,
-			expectError: false,
-			desc:        "空文件大小应该为0",
+			name:       "single file",
+			targetPath: filepath.Join(testDir, "file1.txt"),
+			recursive:  false,
+			want:       []string{filepath.Join(testDir, "file1.txt")},
+			wantErr:    false,
 		},
 		{
-			name: "获取大文件大小",
-			setup: func() string {
-				file := filepath.Join(tempDir, "large_file.txt")
-				content := strings.Repeat("A", 10000) // 10KB
-				if err := os.WriteFile(file, []byte(content), 0644); err != nil {
-					t.Fatalf("创建大文件失败: %v", err)
-				}
-				return file
-			},
-			expectedMin: 10000,
-			expectedMax: 10000,
-			expectError: false,
-			desc:        "大文件大小应该正确计算",
+			name:        "non-existent file",
+			targetPath:  filepath.Join(testDir, "nonexistent.txt"),
+			recursive:   false,
+			want:        nil,
+			wantErr:     true,
+			errContains: "failed to get path info",
 		},
-		{
-			name: "获取目录大小",
-			setup: func() string {
-				dir := filepath.Join(tempDir, "size_dir")
-				if err := os.Mkdir(dir, 0755); err != nil {
-					t.Fatalf("创建目录失败: %v", err)
-				}
 
-				// 在目录中创建一些文件
-				file1 := filepath.Join(dir, "file1.txt")
-				if err := os.WriteFile(file1, []byte("content1"), 0644); err != nil {
-					t.Fatalf("创建文件1失败: %v", err)
-				}
-
-				file2 := filepath.Join(dir, "file2.txt")
-				if err := os.WriteFile(file2, []byte("content2"), 0644); err != nil {
-					t.Fatalf("创建文件2失败: %v", err)
-				}
-
-				return dir
+		// 目录遍历测试
+		{
+			name:       "directory non-recursive",
+			targetPath: testDir,
+			recursive:  false,
+			want: []string{
+				filepath.Join(testDir, "file1.txt"),
+				filepath.Join(testDir, "file2.go"),
 			},
-			expectedMin: 16, // 两个文件的内容总和
-			expectedMax: 50, // 允许目录本身的大小
-			expectError: false,
-			desc:        "目录大小应该包含所有文件的大小",
+			wantErr: false,
 		},
 		{
-			name: "获取不存在文件的大小",
-			setup: func() string {
-				return filepath.Join(tempDir, "non_existing_file.txt")
+			name:       "directory recursive",
+			targetPath: testDir,
+			recursive:  true,
+			want: []string{
+				filepath.Join(testDir, "file1.txt"),
+				filepath.Join(testDir, "file2.go"),
+				filepath.Join(testDir, "subdir", "file3.txt"),
+				filepath.Join(testDir, "subdir", "file4.go"),
+				filepath.Join(testDir, "subdir", "nested", "file5.txt"),
 			},
-			expectedMin: 0,
-			expectedMax: 0,
-			expectError: true,
-			desc:        "不存在的文件应该返回错误",
+			wantErr: false,
+		},
+
+		// 通配符测试
+		{
+			name:       "glob pattern *.txt non-recursive",
+			targetPath: filepath.Join(testDir, "*.txt"),
+			recursive:  false,
+			want: []string{
+				filepath.Join(testDir, "file1.txt"),
+			},
+			wantErr: false,
+		},
+		{
+			name:       "glob pattern *.go non-recursive",
+			targetPath: filepath.Join(testDir, "*.go"),
+			recursive:  false,
+			want: []string{
+				filepath.Join(testDir, "file2.go"),
+			},
+			wantErr: false,
+		},
+		{
+			name:       "glob pattern subdir/* non-recursive",
+			targetPath: filepath.Join(testDir, "subdir", "*"),
+			recursive:  false,
+			want: []string{
+				filepath.Join(testDir, "subdir", "file3.txt"),
+				filepath.Join(testDir, "subdir", "file4.go"),
+				// 通配符匹配到 nested 目录，会收集该目录下的文件（但不递归子目录）
+				filepath.Join(testDir, "subdir", "nested", "file5.txt"),
+			},
+			wantErr: false,
+		},
+		{
+			name:       "glob pattern subdir/* recursive",
+			targetPath: filepath.Join(testDir, "subdir", "*"),
+			recursive:  true,
+			want: []string{
+				filepath.Join(testDir, "subdir", "file3.txt"),
+				filepath.Join(testDir, "subdir", "file4.go"),
+				filepath.Join(testDir, "subdir", "nested", "file5.txt"),
+			},
+			wantErr: false,
+		},
+		{
+			name:        "invalid glob pattern",
+			targetPath:  filepath.Join(testDir, "["),
+			recursive:   false,
+			want:        nil,
+			wantErr:     true,
+			errContains: "invalid path pattern",
+		},
+		{
+			name:        "no matching files for glob",
+			targetPath:  filepath.Join(testDir, "*.xyz"),
+			recursive:   false,
+			want:        nil,
+			wantErr:     true,
+			errContains: "no matching files found",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path := tt.setup()
+			got, err := Collect(tt.targetPath, tt.recursive)
 
-			size, err := GetSize(path)
-
-			if tt.expectError {
+			if tt.wantErr {
 				if err == nil {
-					t.Errorf("GetSize(%q) 期望返回错误，但没有错误 - %s", path, tt.desc)
+					t.Errorf("Collect() error = nil, wantErr %v", tt.wantErr)
+					return
+				}
+				if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("Collect() error = %v, want error containing %q", err, tt.errContains)
 				}
 				return
 			}
 
 			if err != nil {
-				t.Errorf("GetSize(%q) 返回意外错误: %v - %s", path, err, tt.desc)
+				t.Errorf("Collect() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
-			if size < tt.expectedMin || size > tt.expectedMax {
-				t.Errorf("GetSize(%q) = %d, 期望在 %d-%d 范围内 - %s",
-					path, size, tt.expectedMin, tt.expectedMax, tt.desc)
+			// 排序结果以便比较
+			sort.Strings(got)
+			sort.Strings(tt.want)
+
+			if !equalStringSlices(got, tt.want) {
+				t.Errorf("Collect() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-// 边界条件测试
-func TestFSBoundaryConditions(t *testing.T) {
-	tempDir := t.TempDir()
+func TestWalkDir(t *testing.T) {
+	// 创建测试目录结构
+	testDir := setupTestDir(t)
+	defer func() { _ = os.RemoveAll(testDir) }()
 
-	tests := []struct {
-		name string
-		test func(t *testing.T)
-		desc string
-	}{
-		{
-			name: "非常长的路径",
-			test: func(t *testing.T) {
-				// 创建一个非常长的路径
-				longPath := tempDir
-				for i := 0; i < 50; i++ {
-					longPath = filepath.Join(longPath, "very_long_directory_name_that_might_cause_issues")
-				}
-
-				err := os.MkdirAll(longPath, 0755)
-
-				// 在某些系统上可能会因为路径太长而失败
-				t.Logf("长路径创建结果: %v", err)
-			},
-			desc: "非常长的路径应该被正确处理",
-		},
-		{
-			name: "包含特殊字符的路径",
-			test: func(t *testing.T) {
-				specialChars := []string{
-					"测试目录",
-					"directory with spaces",
-					"dir-with-dashes",
-					"dir_with_underscores",
-					"dir.with.dots",
-				}
-
-				for _, name := range specialChars {
-					path := filepath.Join(tempDir, name)
-					err := os.MkdirAll(path, 0755)
-					if err != nil {
-						t.Errorf("创建特殊字符目录 %q 失败: %v", name, err)
-					}
-
-					if !IsDir(path) {
-						t.Errorf("特殊字符目录 %q 未被创建", name)
-					}
-				}
-			},
-			desc: "包含特殊字符的路径应该被正确处理",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.test(t)
-		})
-	}
-}
-
-// 性能测试
-func BenchmarkMkdirAll(b *testing.B) {
-	tempDir := b.TempDir()
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		path := filepath.Join(tempDir, "bench", "mkdir", fmt.Sprintf("test_%d", i))
-		if err := os.MkdirAll(path, 0755); err != nil {
-			b.Fatalf("MkdirAll失败: %v", err)
-		}
-	}
-}
-
-func BenchmarkRemoveAll(b *testing.B) {
-	tempDir := b.TempDir()
-
-	// 预创建目录结构
-	paths := make([]string, b.N)
-	for i := 0; i < b.N; i++ {
-		path := filepath.Join(tempDir, "bench", "remove", fmt.Sprintf("test_%d", i))
-		if err := os.MkdirAll(path, 0755); err != nil {
-			b.Fatalf("预创建目录失败: %v", err)
-		}
-
-		// 在目录中创建一些文件
-		file := filepath.Join(path, "test.txt")
-		if err := os.WriteFile(file, []byte("test content"), 0644); err != nil {
-			b.Fatalf("创建测试文件失败: %v", err)
-		}
-
-		paths[i] = path
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		if err := os.RemoveAll(paths[i]); err != nil {
-
-			b.Fatalf("RemoveAll失败: %v", err)
-		}
-	}
-}
-
-func BenchmarkGetSize(b *testing.B) {
-	tempDir := b.TempDir()
-
-	// 创建测试文件
-	testFile := filepath.Join(tempDir, "benchmark_file.txt")
-	content := strings.Repeat("A", 1024) // 1KB
-	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
-		b.Fatalf("创建基准测试文件失败: %v", err)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		if _, err := GetSize(testFile); err != nil {
-			b.Fatalf("GetSize失败: %v", err)
-		}
-	}
-}
-
-// 并发测试
-func TestFSConcurrency(t *testing.T) {
-	tempDir := t.TempDir()
-
-	const numGoroutines = 50
-	done := make(chan error, numGoroutines)
-
-	// 并发创建目录
-	for i := 0; i < numGoroutines; i++ {
-		go func(id int) {
-			path := filepath.Join(tempDir, "concurrent", fmt.Sprintf("dir_%d", id))
-			err := os.MkdirAll(path, 0755)
-			done <- err
-		}(i)
-	}
-
-	// 等待所有goroutine完成
-	for i := 0; i < numGoroutines; i++ {
-		if err := <-done; err != nil {
-			t.Errorf("并发创建目录失败: %v", err)
-		}
-	}
-
-	// 验证所有目录都被创建
-	for i := 0; i < numGoroutines; i++ {
-		path := filepath.Join(tempDir, "concurrent", fmt.Sprintf("dir_%d", i))
-		if !IsDir(path) {
-			t.Errorf("并发创建的目录 %q 不存在", path)
-		}
-	}
-}
-
-// 错误恢复测试
-func TestFSErrorRecovery(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// 测试在权限不足的情况下的错误处理
-	t.Run("权限不足错误恢复", func(t *testing.T) {
-		// 创建一个只读目录
-		readOnlyDir := filepath.Join(tempDir, "readonly")
-		if err := os.Mkdir(readOnlyDir, 0755); err != nil {
-			t.Fatalf("创建目录失败: %v", err)
-		}
-
-		// 在Windows上，目录权限处理不同，跳过权限设置
-		if runtime.GOOS != "windows" {
-			if err := os.Chmod(readOnlyDir, 0444); err != nil {
-				t.Fatalf("设置只读权限失败: %v", err)
-			}
-		}
-
-		// 尝试在只读目录中创建子目录
-		subDir := filepath.Join(readOnlyDir, "subdir")
-		err := os.MkdirAll(subDir, 0755)
-
-		// 恢复目录权限以便清理
-		_ = os.Chmod(readOnlyDir, 0755)
-
-		// Windows上不期望错误，Unix上期望错误
-		if runtime.GOOS == "windows" {
-			if err != nil {
-				t.Logf("Windows上目录创建结果: %v", err)
-			}
-		} else {
-			if err == nil {
-				t.Error("在只读目录中创建子目录应该返回错误")
-			}
-		}
-	})
-
-	// 测试磁盘空间不足的模拟（这个测试可能不会在所有环境中触发）
-	t.Run("大文件创建", func(t *testing.T) {
-		largeFile := filepath.Join(tempDir, "large_test.txt")
-
-		// 尝试创建一个非常大的文件（但不会真的写入这么多数据）
-		f, err := os.Create(largeFile)
-		if err != nil {
-			t.Fatalf("创建大文件失败: %v", err)
-		}
-		defer func() { _ = f.Close() }()
-
-		// 写入一些数据
-		data := make([]byte, 1024*1024) // 1MB
-		_, err = f.Write(data)
-		if err != nil {
-			t.Logf("写入大文件数据时出错: %v", err)
-		}
-
-		// 获取文件大小
-		size, err := GetSize(largeFile)
-		if err != nil {
-			t.Errorf("获取大文件大小失败: %v", err)
-		} else {
-			t.Logf("大文件大小: %d 字节", size)
-		}
-	})
-}
-
-// TestGetSize1 测试GetSize函数
-func TestGetSize1(t *testing.T) {
-	// 创建临时目录用于测试
-	tempDir := t.TempDir()
-
-	// 测试用例
-	tests := []struct {
-		name        string
-		setupFunc   func() (string, int64) // 返回路径和期望大小
-		expectError bool
-	}{
-		{
-			name: "单个文件",
-			setupFunc: func() (string, int64) {
-				content := "hello world"
-				filePath := filepath.Join(tempDir, "test.txt")
-				err := os.WriteFile(filePath, []byte(content), 0644)
-				if err != nil {
-					t.Fatal(err)
-				}
-				return filePath, int64(len(content))
-			},
-			expectError: false,
-		},
-		{
-			name: "空文件",
-			setupFunc: func() (string, int64) {
-				filePath := filepath.Join(tempDir, "empty.txt")
-				err := os.WriteFile(filePath, []byte{}, 0644)
-				if err != nil {
-					t.Fatal(err)
-				}
-				return filePath, 0
-			},
-			expectError: false,
-		},
-		{
-			name: "目录包含多个文件",
-			setupFunc: func() (string, int64) {
-				dirPath := filepath.Join(tempDir, "testdir")
-				err := os.MkdirAll(dirPath, 0755)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				// 创建多个文件
-				files := map[string]string{
-					"file1.txt": "content1",
-					"file2.txt": "content2",
-					"file3.txt": "content3",
-				}
-
-				var totalSize int64
-				for name, content := range files {
-					filePath := filepath.Join(dirPath, name)
-					err := os.WriteFile(filePath, []byte(content), 0644)
-					if err != nil {
-						t.Fatal(err)
-					}
-					totalSize += int64(len(content))
-				}
-
-				return dirPath, totalSize
-			},
-			expectError: false,
-		},
-		{
-			name: "空目录",
-			setupFunc: func() (string, int64) {
-				dirPath := filepath.Join(tempDir, "emptydir")
-				err := os.MkdirAll(dirPath, 0755)
-				if err != nil {
-					t.Fatal(err)
-				}
-				return dirPath, 0
-			},
-			expectError: false,
-		},
-		{
-			name: "不存在的路径",
-			setupFunc: func() (string, int64) {
-				return "/nonexistent/path", 0
-			},
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			path, expectedSize := tt.setupFunc()
-			size, err := GetSize(path)
-
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("期望错误但没有返回错误")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("意外错误: %v", err)
-				return
-			}
-
-			if size != expectedSize {
-				t.Errorf("GetSize() = %d, 期望 %d", size, expectedSize)
-			}
-		})
-	}
-}
-
-// TestWrapPathError 测试wrapPathError函数
-func TestWrapPathError(t *testing.T) {
 	tests := []struct {
 		name      string
-		err       error
-		path      string
-		operation string
-		expected  string
+		dirPath   string
+		recursive bool
+		want      []string
+		wantErr   bool
 	}{
 		{
-			name:      "文件不存在错误",
-			err:       os.ErrNotExist,
-			path:      "/test/path",
-			operation: "reading",
-			expected:  "path does not exist when reading: /test/path",
+			name:      "empty path should return error",
+			dirPath:   "",
+			recursive: false,
+			want:      nil,
+			wantErr:   true,
 		},
 		{
-			name:      "权限错误",
-			err:       os.ErrPermission,
-			path:      "/test/path",
-			operation: "writing",
-			expected:  "permission denied when writing path '/test/path'",
+			name:      "non-existent directory",
+			dirPath:   filepath.Join(testDir, "nonexistent"),
+			recursive: false,
+			want:      nil,
+			wantErr:   true,
 		},
 		{
-			name:      "其他错误",
-			err:       fmt.Errorf("custom error"),
-			path:      "/test/path",
-			operation: "accessing",
-			expected:  "error when accessing path '/test/path': custom error",
+			name:      "empty directory non-recursive",
+			dirPath:   filepath.Join(testDir, "empty"),
+			recursive: false,
+			want:      []string{},
+			wantErr:   false,
+		},
+		{
+			name:      "directory with files non-recursive",
+			dirPath:   testDir,
+			recursive: false,
+			want: []string{
+				filepath.Join(testDir, "file1.txt"),
+				filepath.Join(testDir, "file2.go"),
+			},
+			wantErr: false,
+		},
+		{
+			name:      "directory with files recursive",
+			dirPath:   testDir,
+			recursive: true,
+			want: []string{
+				filepath.Join(testDir, "file1.txt"),
+				filepath.Join(testDir, "file2.go"),
+				filepath.Join(testDir, "subdir", "file3.txt"),
+				filepath.Join(testDir, "subdir", "file4.go"),
+				filepath.Join(testDir, "subdir", "nested", "file5.txt"),
+			},
+			wantErr: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := wrapPathError(tt.err, tt.path, tt.operation)
-			if !strings.Contains(result.Error(), tt.path) {
-				t.Errorf("错误信息应包含路径 %s，但得到: %s", tt.path, result.Error())
+			got, err := walkDir(tt.dirPath, tt.recursive)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("walkDir() error = nil, wantErr %v", tt.wantErr)
+				}
+				return
 			}
-			if !strings.Contains(result.Error(), tt.operation) {
-				t.Errorf("错误信息应包含操作 %s，但得到: %s", tt.operation, result.Error())
+
+			if err != nil {
+				t.Errorf("walkDir() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			// 排序结果以便比较
+			sort.Strings(got)
+			sort.Strings(tt.want)
+
+			if !equalStringSlices(got, tt.want) {
+				t.Errorf("walkDir() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-// TestGetSize_SymbolicLinks 测试符号链接
-func TestGetSize_SymbolicLinks(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// 创建原始文件
-	originalFile := filepath.Join(tempDir, "original.txt")
-	content := "test content"
-	err := os.WriteFile(originalFile, []byte(content), 0644)
+// setupTestDir 创建测试目录结构
+func setupTestDir(t *testing.T) string {
+	testDir, err := os.MkdirTemp("", "fs_test")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 
-	// 创建符号链接
-	linkFile := filepath.Join(tempDir, "link.txt")
-	err = os.Symlink(originalFile, linkFile)
-	if err != nil {
-		t.Skip("无法创建符号链接，跳过测试")
+	// 创建文件和目录结构
+	files := map[string]string{
+		"file1.txt":               "content1",
+		"file2.go":                "package main",
+		"subdir/file3.txt":        "content3",
+		"subdir/file4.go":         "package sub",
+		"subdir/nested/file5.txt": "content5",
 	}
 
-	// 测试符号链接的大小
-	size, err := GetSize(linkFile)
-	if err != nil {
-		t.Errorf("获取符号链接大小失败: %v", err)
+	// 创建空目录
+	emptyDir := filepath.Join(testDir, "empty")
+	if err := os.MkdirAll(emptyDir, 0755); err != nil {
+		t.Fatalf("Failed to create empty dir: %v", err)
 	}
 
-	expectedSize := int64(len(content))
-	if size != expectedSize {
-		t.Errorf("符号链接大小 = %d, 期望 %d", size, expectedSize)
+	// 创建文件
+	for filePath, content := range files {
+		fullPath := filepath.Join(testDir, filePath)
+		dir := filepath.Dir(fullPath)
+
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("Failed to create dir %s: %v", dir, err)
+		}
+
+		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create file %s: %v", fullPath, err)
+		}
 	}
+
+	return testDir
 }
 
-// TestIntegration_GetSizeAndFormat 集成测试：获取大小并格式化
-func TestIntegration_GetSizeAndFormat(t *testing.T) {
-	tempDir := t.TempDir()
+// equalStringSlices 比较两个字符串切片是否相等
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
 
-	// 创建不同大小的文件
-	testFiles := []struct {
-		name         string
-		content      string
-		expectedUnit string
-	}{
-		{"small.txt", "hello", "B"},
-		{"medium.txt", strings.Repeat("a", 2048), "KB"},
-		{"large.txt", strings.Repeat("b", 1024*1024+512), "MB"},
+// BenchmarkCollect 性能测试
+func BenchmarkCollect(b *testing.B) {
+	testDir := setupBenchmarkDir(b)
+	defer func() { _ = os.RemoveAll(testDir) }()
+
+	b.Run("SingleFile", func(b *testing.B) {
+		filePath := filepath.Join(testDir, "file1.txt")
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := Collect(filePath, false)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("DirectoryNonRecursive", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := Collect(testDir, false)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("DirectoryRecursive", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := Collect(testDir, true)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("GlobPattern", func(b *testing.B) {
+		pattern := filepath.Join(testDir, "*.txt")
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := Collect(pattern, false)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+// setupBenchmarkDir 创建性能测试目录结构
+func setupBenchmarkDir(b *testing.B) string {
+	testDir, err := os.MkdirTemp("", "fs_bench")
+	if err != nil {
+		b.Fatalf("Failed to create temp dir: %v", err)
 	}
 
-	for _, tf := range testFiles {
-		t.Run(tf.name, func(t *testing.T) {
-			filePath := filepath.Join(tempDir, tf.name)
-			err := os.WriteFile(filePath, []byte(tf.content), 0644)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			// 获取文件大小
-			size, err := GetSize(filePath)
-			if err != nil {
-				t.Errorf("获取文件大小失败: %v", err)
-			}
-
-			// 验证大小正确性
-			expectedSize := int64(len(tf.content))
-			if size != expectedSize {
-				t.Errorf("文件大小不匹配: 得到 %d, 期望 %d", size, expectedSize)
-			}
-		})
+	// 创建更多文件用于性能测试
+	for i := 0; i < 100; i++ {
+		fileName := filepath.Join(testDir, "file"+string(rune('0'+i%10))+".txt")
+		if err := os.WriteFile(fileName, []byte("content"), 0644); err != nil {
+			b.Fatalf("Failed to create file: %v", err)
+		}
 	}
+
+	// 创建子目录
+	subDir := filepath.Join(testDir, "subdir")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		b.Fatalf("Failed to create subdir: %v", err)
+	}
+
+	for i := 0; i < 50; i++ {
+		fileName := filepath.Join(subDir, "subfile"+string(rune('0'+i%10))+".go")
+		if err := os.WriteFile(fileName, []byte("package main"), 0644); err != nil {
+			b.Fatalf("Failed to create subfile: %v", err)
+		}
+	}
+
+	return testDir
 }

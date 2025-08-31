@@ -72,6 +72,26 @@ func DrainString() {
 	defaultStringPool.Drain()
 }
 
+// WithString 使用字符串构建器执行函数，自动管理获取和归还
+//
+// 参数:
+//   - capacity: 字符串构建器初始容量大小
+//   - fn: 使用字符串构建器的函数
+//
+// 返回值:
+//   - string: 函数执行后构建的字符串结果
+//
+// 使用示例:
+//
+//	result := pool.WithString(64, func(buf *strings.Builder) {
+//	    buf.WriteString("Hello")
+//	    buf.WriteByte(' ')
+//	    buf.WriteString("World")
+//	})
+func WithString(capacity int, fn func(*strings.Builder)) string {
+	return defaultStringPool.WithString(capacity, fn)
+}
+
 // StringPool 字符串构建器对象池，支持自定义配置
 type StringPool struct {
 	pool        sync.Pool // 字符串构建器对象池
@@ -252,4 +272,27 @@ func (sp *StringPool) Drain() {
 			return builder
 		},
 	}
+}
+
+// WithString 使用字符串构建器执行函数，自动管理获取和归还
+//
+// 参数:
+//   - capacity: 字符串构建器初始容量大小
+//   - fn: 使用字符串构建器的函数
+//
+// 返回值:
+//   - string: 函数执行后构建的字符串结果
+//
+// 说明:
+//   - 自动从对象池获取字符串构建器
+//   - 执行用户提供的函数
+//   - 获取构建的字符串结果
+//   - 自动归还字符串构建器到对象池
+//   - 即使函数发生panic也会正确归还资源
+func (sp *StringPool) WithString(capacity int, fn func(*strings.Builder)) string {
+	builder := sp.Get(capacity)
+	defer sp.Put(builder)
+
+	fn(builder)
+	return builder.String()
 }

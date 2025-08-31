@@ -97,6 +97,46 @@ func DrainByte() {
 	defaultPool.Drain()
 }
 
+// WithByte 使用字节切片执行函数，自动管理获取和归还
+//
+// 参数:
+//   - size: 字节切片初始大小
+//   - fn: 使用字节切片的函数
+//
+// 返回值:
+//   - []byte: 函数执行后字节切片的数据副本
+//
+// 使用示例:
+//
+//	data := pool.WithByte(1024, func(buf []byte) {
+//	    copy(buf, []byte("Hello World"))
+//	    // 可以直接操作buf进行读写
+//	})
+func WithByte(size int, fn func([]byte)) []byte {
+	return defaultPool.WithByte(size, fn)
+}
+
+// WithEmptyByte 使用空字节切片执行函数，自动管理获取和归还
+//
+// 参数:
+//   - capacity: 字节切片初始容量
+//   - fn: 使用字节切片的函数，通过append等操作构建数据
+//
+// 返回值:
+//   - []byte: 函数执行后字节切片的数据副本
+//
+// 使用示例:
+//
+//	data := pool.WithEmptyByte(1024, func(buf []byte) []byte {
+//	    buf = append(buf, []byte("Hello")...)
+//	    buf = append(buf, ' ')
+//	    buf = append(buf, []byte("World")...)
+//	    return buf
+//	})
+func WithEmptyByte(capacity int, fn func([]byte) []byte) []byte {
+	return defaultPool.WithEmptyByte(capacity, fn)
+}
+
 // BytePool 字节切片对象池，支持自定义配置
 type BytePool struct {
 	pool        sync.Pool // 缓冲区对象池
@@ -271,4 +311,56 @@ func (bp *BytePool) Drain() {
 			return &buf                            // 返回指针避免装箱
 		},
 	}
+}
+
+// WithByte 使用字节切片执行函数，自动管理获取和归还
+//
+// 参数:
+//   - size: 字节切片初始大小
+//   - fn: 使用字节切片的函数
+//
+// 返回值:
+//   - []byte: 函数执行后字节切片的数据副本
+//
+// 说明:
+//   - 自动从对象池获取字节切片
+//   - 执行用户提供的函数
+//   - 获取字节切片数据的副本
+//   - 自动归还字节切片到对象池
+//   - 即使函数发生panic也会正确归还资源
+func (bp *BytePool) WithByte(size int, fn func([]byte)) []byte {
+	buffer := bp.Get(size)
+	defer bp.Put(buffer)
+
+	fn(buffer)
+	// 返回数据的副本，避免在归还后访问
+	result := make([]byte, len(buffer))
+	copy(result, buffer)
+	return result
+}
+
+// WithEmptyByte 使用空字节切片执行函数，自动管理获取和归还
+//
+// 参数:
+//   - capacity: 字节切片初始容量
+//   - fn: 使用字节切片的函数，通过append等操作构建数据
+//
+// 返回值:
+//   - []byte: 函数执行后字节切片的数据副本
+//
+// 说明:
+//   - 自动从对象池获取空字节切片（长度为0）
+//   - 执行用户提供的函数，函数需要返回构建后的切片
+//   - 获取字节切片数据的副本
+//   - 自动归还字节切片到对象池
+//   - 即使函数发生panic也会正确归还资源
+func (bp *BytePool) WithEmptyByte(capacity int, fn func([]byte) []byte) []byte {
+	buffer := bp.GetEmpty(capacity)
+	defer bp.Put(buffer)
+
+	result := fn(buffer)
+	// 返回数据的副本，避免在归还后访问
+	finalResult := make([]byte, len(result))
+	copy(finalResult, result)
+	return finalResult
 }
