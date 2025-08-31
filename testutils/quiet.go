@@ -53,7 +53,7 @@ func Quiet() RunFunc {
 				restoreStderr()
 			}
 			if nullFile != nil {
-				nullFile.Close()
+				_ = nullFile.Close()
 			}
 		}()
 

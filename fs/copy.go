@@ -21,7 +21,7 @@ func CopyFile(src, dst string) (err error) {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
 	// 获取源文件元数据
 	fi, err := in.Stat()
@@ -44,7 +44,7 @@ func CopyFile(src, dst string) (err error) {
 	// 捕获所有错误，统一清理
 	success := false
 	defer func() {
-		out.Close()
+		_ = out.Close()
 		if !success {
 			_ = os.Remove(tmp) // 忽略清理错误
 		}
