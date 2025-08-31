@@ -72,6 +72,75 @@ func getHashAlgorithm(algorithm string) (func() hash.Hash, error) {
 	return algoFunc, nil
 }
 
+// checksumCore 核心哈希计算逻辑，支持可选的进度条显示
+//
+// 参数:
+//   - filePath: 文件路径
+//   - algorithm: 哈希算法名称
+//   - showProgress: 是否显示进度条
+//
+// 返回:
+//   - string: 文件的十六进制哈希值
+//   - error: 错误信息，如果计算失败
+func checksumCore(filePath, algorithm string, showProgress bool) (string, error) {
+	// 检查文件是否存在
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return "", fmt.Errorf("file does not exist or is inaccessible: %v", err)
+	}
+
+	// 打开文件
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open file: %v", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	// 获取哈希函数构造器
+	hashFunc, err := getHashAlgorithm(algorithm)
+	if err != nil {
+		return "", err
+	}
+	h := hashFunc()
+
+	// 根据文件大小动态分配缓冲区
+	fileSize := fileInfo.Size()
+	bufferSize := calculateBufferSize(fileSize)
+	buffer := make([]byte, bufferSize)
+
+	// 默认写入器为哈希函数
+	var writer io.Writer = h
+
+	// 如果需要显示进度条，则创建进度条
+	if showProgress {
+		bar := progressbar.NewOptions64(
+			fileSize,                          // 进度条总长度
+			progressbar.OptionClearOnFinish(), // 结束时清除进度条
+			progressbar.OptionSetDescription(file.Name()+" 计算中..."), // 显示描述
+			progressbar.OptionSetElapsedTime(true),                  // 显示已用时间
+			progressbar.OptionSetPredictTime(true),                  // 显示预计剩余时间
+			progressbar.OptionSetRenderBlankState(true),             // 在进度条完成之前显示空白状态
+			progressbar.OptionShowBytes(true),                       // 显示进度条传输的字节
+			progressbar.OptionShowCount(),                           // 显示当前进度的总和
+			//progressbar.OptionShowElapsedTimeOnFinish(),        // 完成后显示已用时间
+			progressbar.OptionSetTheme(progressbar.ThemeASCII), // ASCII 进度条主题(默认为 Unicode 进度条主题)
+			progressbar.OptionFullWidth(),                      // 设置进度条为终端最大宽度
+		)
+		defer func() {
+			_ = bar.Finish() // 完成进度条
+			_ = bar.Close()  // 关闭进度条
+		}()
+		writer = io.MultiWriter(h, bar)
+	}
+
+	// 使用 io.CopyBuffer 进行高效复制并计算哈希
+	if _, err := io.CopyBuffer(writer, file, buffer); err != nil {
+		return "", fmt.Errorf("failed to read file: %v", err)
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
 // Checksum 计算文件哈希值
 //
 // 参数:
@@ -87,43 +156,7 @@ func getHashAlgorithm(algorithm string) (func() hash.Hash, error) {
 //   - 支持任何实现hash.Hash接口的哈希算法
 //   - 使用io.CopyBuffer进行高效的文件读取和哈希计算
 func Checksum(filePath string, algorithm string) (string, error) {
-	// 检查文件是否存在
-	fileInfo, err := os.Stat(filePath)
-	if err != nil {
-		return "", fmt.Errorf("file does not exist or is inaccessible: %v", err)
-	}
-
-	// 打开文件
-	file, err := os.Open(filePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to open file: %v", err)
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			fmt.Printf("close file failed: %v\n", err)
-		}
-	}()
-
-	// 获取哈希函数构造器
-	hashFunc, err := getHashAlgorithm(algorithm)
-	if err != nil {
-		return "", err
-	}
-	// 创建哈希对象
-	h := hashFunc()
-
-	// 根据文件大小动态分配缓冲区
-	fileSize := fileInfo.Size()
-	bufferSize := CalculateBufferSize(fileSize)
-	buffer := make([]byte, bufferSize)
-
-	// 使用 io.CopyBuffer 进行高效复制并计算哈希
-	if _, err := io.CopyBuffer(h, file, buffer); err != nil {
-		return "", fmt.Errorf("failed to read file: %v", err)
-	}
-
-	// 返回哈希值的十六进制表示
-	return hex.EncodeToString(h.Sum(nil)), nil
+	return checksumCore(filePath, algorithm, false)
 }
 
 // ChecksumProgress 计算文件哈希值(带进度条)
@@ -141,70 +174,10 @@ func Checksum(filePath string, algorithm string) (string, error) {
 //   - 支持任何实现hash.Hash接口的哈希算法
 //   - 使用io.CopyBuffer进行高效的文件读取和哈希计算
 func ChecksumProgress(filePath string, algorithm string) (string, error) {
-	// 检查文件是否存在
-	fileInfo, err := os.Stat(filePath)
-	if err != nil {
-		return "", fmt.Errorf("file does not exist or is inaccessible: %v", err)
-	}
-
-	// 打开文件
-	file, err := os.Open(filePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to open file: %v", err)
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			fmt.Printf("close file failed: %v\n", err)
-		}
-	}()
-
-	// 获取哈希函数构造器
-	hashFunc, err := getHashAlgorithm(algorithm)
-	if err != nil {
-		return "", err
-	}
-	// 创建哈希对象
-	h := hashFunc()
-
-	// 根据文件大小动态分配缓冲区
-	fileSize := fileInfo.Size()
-	bufferSize := CalculateBufferSize(fileSize)
-	buffer := make([]byte, bufferSize)
-
-	// 创建进度条
-	bar := progressbar.NewOptions64(
-		fileSize,                          // 总进度
-		progressbar.OptionClearOnFinish(), // 完成后清除进度条
-		progressbar.OptionSetDescription(file.Name()+" 计算中"), // 设置进度条描述
-	)
-	defer func() {
-		// 完成进度条
-		if err := bar.Finish(); err != nil {
-			fmt.Printf("finish progress bar failed: %v\n", err)
-		}
-
-		// 关闭进度条
-		if err := bar.Close(); err != nil {
-			fmt.Printf("close progress bar failed: %v\n", err)
-		}
-	}()
-
-	// 创建多路写入器
-	multiWriter := io.MultiWriter(h, bar)
-
-	// 使用 io.CopyBuffer 进行高效复制并计算哈希
-	if _, err := io.CopyBuffer(multiWriter, file, buffer); err != nil {
-		return "", fmt.Errorf("failed to read file: %v", err)
-	}
-
-	// 获取哈希值的十六进制表示
-	hashStr := hex.EncodeToString(h.Sum(nil))
-
-	// 返回哈希值的十六进制表示
-	return hashStr, nil
+	return checksumCore(filePath, algorithm, true)
 }
 
-// CalculateBufferSize 根据文件大小动态计算最佳缓冲区大小。
+// calculateBufferSize 根据文件大小动态计算最佳缓冲区大小。
 // 采用分层策略，平衡内存使用和I/O性能。
 //
 // 参数:
@@ -229,7 +202,7 @@ func ChecksumProgress(filePath string, algorithm string) (string, error) {
 //   - 小文件: 适度缓冲，节省内存
 //   - 大文件: 增大缓冲区，提升I/O吞吐量
 //   - 超大文件: 限制最大缓冲区，避免过度内存消耗
-func CalculateBufferSize(fileSize int64) int {
+func calculateBufferSize(fileSize int64) int {
 	switch {
 	case fileSize <= 4*KB: // 极小文件直接使用文件大小作为缓冲区
 		return int(fileSize)
