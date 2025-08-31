@@ -32,12 +32,12 @@ func TestCalculateBufferSize(t *testing.T) {
 		fileSize int64
 		expected int
 	}{
-		// 极小文件测试 (≤ 4KB)
-		{"Empty file", 0, 0},
-		{"1 byte", 1, 1},
-		{"100 bytes", 100, 100},
-		{"1KB", 1 * KB, int(1 * KB)},
-		{"4KB exactly", 4 * KB, int(4 * KB)},
+		// 极小文件测试 (≤ 4KB) - 现在都使用1KB缓冲区
+		{"Empty file", 0, int(KB)},
+		{"1 byte", 1, int(KB)},
+		{"100 bytes", 100, int(KB)},
+		{"1KB", 1 * KB, int(KB)},
+		{"4KB exactly", 4 * KB, int(KB)},
 
 		// 小文件测试 (4KB - 32KB)
 		{"4KB + 1", 4*KB + 1, int(8 * KB)},
@@ -101,9 +101,9 @@ func TestCalculateBufferSize_EdgeCases(t *testing.T) {
 	// 测试负数输入
 	t.Run("Negative file size", func(t *testing.T) {
 		result := CalculateBufferSize(-1)
-		// 负数会进入第一个case，返回负数转换为int
-		if result != -1 {
-			t.Errorf("CalculateBufferSize(-1) = %d, expected -1", result)
+		// 负数会进入第一个case，现在返回1KB
+		if result != int(KB) {
+			t.Errorf("CalculateBufferSize(-1) = %d, expected %d", result, int(KB))
 		}
 	})
 
@@ -113,7 +113,7 @@ func TestCalculateBufferSize_EdgeCases(t *testing.T) {
 		fileSize int64
 		expected int
 	}{
-		{"Exactly 4KB", 4 * KB, int(4 * KB)},
+		{"Exactly 4KB", 4 * KB, int(KB)},
 		{"4KB + 1 byte", 4*KB + 1, int(8 * KB)},
 		{"Exactly 32KB", 32 * KB, int(32 * KB)},
 		{"32KB + 1 byte", 32*KB + 1, int(32 * KB)},
@@ -189,12 +189,12 @@ func TestCalculateBufferSize_Consistency(t *testing.T) {
 
 func TestCalculateBufferSize_Rationale(t *testing.T) {
 	// 测试缓冲区大小的合理性
-	t.Run("Buffer size should not exceed file size for small files", func(t *testing.T) {
-		smallSizes := []int64{1, 10, 100, 1 * KB, 2 * KB, 4 * KB}
+	t.Run("Buffer size should be at least 1KB for small files", func(t *testing.T) {
+		smallSizes := []int64{0, 1, 10, 100, 1 * KB, 2 * KB, 4 * KB}
 		for _, size := range smallSizes {
 			bufferSize := CalculateBufferSize(size)
-			if int64(bufferSize) > size && size > 0 {
-				t.Errorf("Buffer size %d exceeds file size %d", bufferSize, size)
+			if bufferSize < int(KB) {
+				t.Errorf("Buffer size %d should be at least 1KB for file size %d", bufferSize, size)
 			}
 		}
 	})

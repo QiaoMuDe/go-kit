@@ -19,7 +19,7 @@ const (
 //   - int: 计算出的最佳缓冲区大小（字节）
 //
 // 缓冲区分配策略:
-//   - ≤ 4KB: 使用文件实际大小，避免内存浪费
+//   - ≤ 0 或 ≤ 4KB: 使用 1KB 缓冲区，确保最小缓冲区大小
 //   - 4KB - 32KB: 使用 8KB 缓冲区
 //   - 32KB - 128KB: 使用 32KB 缓冲区
 //   - 128KB - 512KB: 使用 64KB 缓冲区
@@ -36,8 +36,10 @@ const (
 //   - 超大文件: 限制最大缓冲区，避免过度内存消耗
 func CalculateBufferSize(fileSize int64) int {
 	switch {
-	case fileSize <= 4*KB: // 极小文件直接使用文件大小作为缓冲区
-		return int(fileSize)
+	case fileSize <= 0: // 空文件或无效大小，使用最小1KB缓冲区
+		return int(KB)
+	case fileSize <= 4*KB: // 极小文件使用1KB缓冲区，避免过小缓冲区
+		return int(KB)
 	case fileSize < 32*KB: // 小于 32KB 的文件使用 8KB 缓冲区
 		return int(8 * KB)
 	case fileSize < 128*KB: // 32KB-128KB 使用 32KB 缓冲区
