@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"gitee.com/MM-Q/go-kit/pool"
 )
 
 // 随机字符集(固定62位请勿修改)
@@ -35,8 +37,8 @@ func GenID(n int) string {
 	buf.WriteString(ts)
 
 	// 获取随机数生成器
-	r := getRand()
-	defer putRand(r)
+	r := pool.GetRand()
+	defer pool.PutRand(r)
 
 	// 生成n位随机数
 	for i := 0; i < n; i++ {
@@ -61,8 +63,8 @@ func GenIDs(count, n int) []string {
 	}
 
 	ids := make([]string, count)
-	r := getRand()
-	defer putRand(r)
+	r := pool.GetRand()
+	defer pool.PutRand(r)
 
 	for i := 0; i < count; i++ {
 		ts := fmt.Sprintf("%08d", time.Now().UnixNano()%1e8)
@@ -162,8 +164,8 @@ func Valid(id string, n int) bool {
 // 返回:
 //   - 36位长度的UUID格式字符串
 func UUID() string {
-	r := getRand()
-	defer putRand(r)
+	r := pool.GetRand()
+	defer pool.PutRand(r)
 
 	var buf strings.Builder
 	buf.Grow(36) // 32字符 + 4个连字符
