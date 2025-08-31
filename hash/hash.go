@@ -98,7 +98,8 @@ func checksumCore(filePath, algorithm string, showProgress bool) (string, error)
 	// 根据文件大小动态分配缓冲区
 	fileSize := fileInfo.Size()
 	bufferSize := buffer.CalculateBufferSize(fileSize)
-	buffer := make([]byte, bufferSize)
+	buf := buffer.Get(bufferSize)
+	defer buffer.Put(buf) // 使用完毕后归还到对象池
 
 	// 默认写入器为哈希函数
 	var writer io.Writer = h
@@ -126,7 +127,7 @@ func checksumCore(filePath, algorithm string, showProgress bool) (string, error)
 	}
 
 	// 使用 io.CopyBuffer 进行高效复制并计算哈希
-	if _, err := io.CopyBuffer(writer, file, buffer); err != nil {
+	if _, err := io.CopyBuffer(writer, file, buf); err != nil {
 		return "", fmt.Errorf("failed to read file: %v", err)
 	}
 
