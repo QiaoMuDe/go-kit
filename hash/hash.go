@@ -172,3 +172,97 @@ func Checksum(filePath string, algorithm string) (string, error) {
 func ChecksumProgress(filePath string, algorithm string) (string, error) {
 	return checksumCore(filePath, algorithm, true)
 }
+
+// HashData 计算内存数据哈希值
+//
+// 参数:
+//   - data: 要计算哈希的字节数据
+//   - algorithm: 哈希算法名称（如 "md5", "sha1", "sha256", "sha512"）
+//
+// 返回:
+//   - string: 数据的十六进制哈希值
+//   - error: 错误信息，如果计算失败
+//
+// 注意:
+//   - 直接在内存中计算，无需文件I/O，性能更高
+//   - 支持任何大小的数据，包括空数据
+//   - 使用标准库优化的hash实现，性能最佳
+func HashData(data []byte, algorithm string) (string, error) {
+	// 参数验证
+	if data == nil {
+		return "", fmt.Errorf("data cannot be nil")
+	}
+
+	// 获取哈希函数构造器
+	hashFunc, err := getHashAlgorithm(algorithm)
+	if err != nil {
+		return "", err
+	}
+	h := hashFunc()
+
+	// 直接写入所有数据 - 标准库已经优化过了
+	if _, err := h.Write(data); err != nil {
+		return "", fmt.Errorf("failed to write data to hash: %v", err)
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// HashString 计算字符串哈希值（便利函数）
+//
+// 参数:
+//   - data: 要计算哈希的字符串
+//   - algorithm: 哈希算法名称（如 "md5", "sha1", "sha256", "sha512"）
+//
+// 返回:
+//   - string: 字符串的十六进制哈希值
+//   - error: 错误信息，如果计算失败
+//
+// 注意:
+//   - 这是HashData的便利包装函数
+//   - 内部将字符串转换为字节切片进行处理
+//   - 适用于文本数据、配置字符串等场景
+func HashString(data string, algorithm string) (string, error) {
+	return HashData([]byte(data), algorithm)
+}
+
+// HashReader 计算io.Reader数据哈希值
+//
+// 参数:
+//   - reader: 数据源读取器
+//   - algorithm: 哈希算法名称（如 "md5", "sha1", "sha256", "sha512"）
+//
+// 返回:
+//   - string: 读取数据的十六进制哈希值
+//   - error: 错误信息，如果计算失败
+//
+// 注意:
+//   - 适用于流式数据处理，如网络数据、管道数据等
+//   - 使用缓冲区进行高效读取，避免频繁的小块读取
+//   - 会完全消费Reader中的数据
+//   - 使用对象池优化内存分配
+func HashReader(reader io.Reader, algorithm string) (string, error) {
+	// 参数验证
+	if reader == nil {
+		return "", fmt.Errorf("reader cannot be nil")
+	}
+
+	// 获取哈希函数构造器
+	hashFunc, err := getHashAlgorithm(algorithm)
+	if err != nil {
+		return "", err
+	}
+	h := hashFunc()
+
+	// 从对象池获取缓冲区进行高效读取
+	const bufferSize = 32 * 1024 // 32KB缓冲区，平衡内存使用和I/O效率
+	buf := pool.GetByte(bufferSize)
+	defer pool.PutByte(buf)
+
+	// 使用io.CopyBuffer进行高效复制和哈希计算
+	if _, err := io.CopyBuffer(h, reader, buf); err != nil {
+		return "", fmt.Errorf("failed to read data from reader: %v", err)
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
