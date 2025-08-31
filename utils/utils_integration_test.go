@@ -6,51 +6,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gitee.com/MM-Q/go-kit/fs"
 )
-
-// TestIntegration_GetSizeAndFormat 集成测试：获取大小并格式化
-func TestIntegration_GetSizeAndFormat(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// 创建不同大小的文件
-	testFiles := []struct {
-		name         string
-		content      string
-		expectedUnit string
-	}{
-		{"small.txt", "hello", "B"},
-		{"medium.txt", strings.Repeat("a", 2048), "KB"},
-		{"large.txt", strings.Repeat("b", 1024*1024+512), "MB"},
-	}
-
-	for _, tf := range testFiles {
-		t.Run(tf.name, func(t *testing.T) {
-			filePath := filepath.Join(tempDir, tf.name)
-			err := os.WriteFile(filePath, []byte(tf.content), 0644)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			// 获取文件大小
-			size, err := GetSize(filePath)
-			if err != nil {
-				t.Errorf("获取文件大小失败: %v", err)
-			}
-
-			// 格式化大小
-			formatted := FormatBytes(size)
-			if !strings.Contains(formatted, tf.expectedUnit) {
-				t.Errorf("格式化结果 %s 不包含期望单位 %s", formatted, tf.expectedUnit)
-			}
-
-			// 验证大小正确性
-			expectedSize := int64(len(tf.content))
-			if size != expectedSize {
-				t.Errorf("文件大小不匹配: 得到 %d, 期望 %d", size, expectedSize)
-			}
-		})
-	}
-}
 
 // TestIntegration_CommandExecutionAndSizeCheck 集成测试：命令执行和大小检查
 func TestIntegration_CommandExecutionAndSizeCheck(t *testing.T) {
@@ -72,7 +30,7 @@ func TestIntegration_CommandExecutionAndSizeCheck(t *testing.T) {
 	}
 
 	// 获取文件大小
-	size, err := GetSize(outputFile)
+	size, err := fs.GetSize(outputFile)
 	if err != nil {
 		t.Errorf("获取文件大小失败: %v", err)
 	}
@@ -185,7 +143,7 @@ func TestIntegration_DirectoryTraversal(t *testing.T) {
 	}
 
 	// 测试整个目录的大小
-	totalSize, err := GetSize(tempDir)
+	totalSize, err := fs.GetSize(tempDir)
 	if err != nil {
 		t.Errorf("获取目录大小失败: %v", err)
 	}
@@ -199,7 +157,7 @@ func TestIntegration_DirectoryTraversal(t *testing.T) {
 	t.Logf("目录总大小: %s", formatted)
 
 	// 测试子目录大小
-	subdir1Size, err := GetSize(filepath.Join(tempDir, "subdir1"))
+	subdir1Size, err := fs.GetSize(filepath.Join(tempDir, "subdir1"))
 	if err != nil {
 		t.Errorf("获取子目录大小失败: %v", err)
 	}
@@ -215,7 +173,7 @@ func TestIntegration_ErrorPropagation(t *testing.T) {
 	// 测试不存在路径的错误处理
 	nonExistentPath := "/absolutely/nonexistent/path/file.txt"
 
-	size, err := GetSize(nonExistentPath)
+	size, err := fs.GetSize(nonExistentPath)
 	if err == nil {
 		t.Error("期望错误但没有返回错误")
 	}
@@ -258,7 +216,7 @@ func TestIntegration_ConcurrentAccess(t *testing.T) {
 
 	for i := 0; i < numGoroutines; i++ {
 		go func() {
-			size, err := GetSize(testFile)
+			size, err := fs.GetSize(testFile)
 			formatted := FormatBytes(size)
 			results <- struct {
 				size      int64

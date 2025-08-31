@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gitee.com/MM-Q/go-kit/fs"
 )
 
 // BenchmarkFormatBytes_AllSizes 测试不同大小的格式化性能
@@ -63,7 +65,7 @@ func BenchmarkGetSize_FileVsDirectory(b *testing.B) {
 	b.Run("SingleLargeFile", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := GetSize(largeFile)
+			_, err := fs.GetSize(largeFile)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -73,7 +75,7 @@ func BenchmarkGetSize_FileVsDirectory(b *testing.B) {
 	b.Run("ManySmallFiles", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := GetSize(manyFilesDir)
+			_, err := fs.GetSize(manyFilesDir)
 			if err != nil {
 				b.Fatal(err)
 			}

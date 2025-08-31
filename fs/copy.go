@@ -81,7 +81,10 @@ func copyFileInternal(src, dst string, overwrite bool) error {
 	// 统一清理资源
 	success := false
 	defer func() {
-		_ = out.Close()
+		if out != nil {
+			_ = out.Close()
+			out = nil // 防止重复关闭
+		}
 		if !success {
 			_ = os.Remove(tmp) // 清理临时文件
 		}
@@ -101,6 +104,12 @@ func copyFileInternal(src, dst string, overwrite bool) error {
 	if err := out.Sync(); err != nil {
 		return fmt.Errorf("failed to sync temporary file '%s': %w", tmp, err)
 	}
+
+	// 在重命名前关闭文件句柄(Windows要求)
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary file '%s': %w", tmp, err)
+	}
+	out = nil // 标记为已关闭
 
 	// 原子重命名
 	if err := os.Rename(tmp, dst); err != nil {

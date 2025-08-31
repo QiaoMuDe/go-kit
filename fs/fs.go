@@ -235,3 +235,83 @@ func collectSinglePath(path string, recursive bool) ([]string, error) {
 	// 如果是目录，进行遍历
 	return walkDir(path, recursive)
 }
+
+// wrapPathError 包装路径相关错误，提供统一的错误处理
+//
+// 参数:
+//   - err: 原始错误
+//   - path: 路径
+//   - operation: 操作描述
+//
+// 返回:
+//   - error: 包装后的错误
+func wrapPathError(err error, path, operation string) error {
+	if os.IsNotExist(err) {
+		return fmt.Errorf("path does not exist when %s: %s", operation, path)
+	}
+	if os.IsPermission(err) {
+		return fmt.Errorf("permission denied when %s path '%s': %w", operation, path, err)
+	}
+	return fmt.Errorf("error when %s path '%s': %w", operation, path, err)
+}
+
+// GetSize 获取文件或目录的大小
+// 用于计算文件或目录的总字节数，目录会递归计算所有普通文件的大小
+//
+// 参数:
+//   - path: 文件或目录路径
+//
+// 返回:
+//   - int64: 文件或目录的总大小(字节)
+//   - error: 路径不存在或访问失败时返回错误
+func GetSize(path string) (int64, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, wrapPathError(err, path, "accessing")
+	}
+
+	// 如果是普通文件，直接返回文件大小
+	if info.Mode().IsRegular() {
+		return info.Size(), nil
+	}
+
+	// 如果不是目录，提前返回 0(符号链接等特殊文件)
+	if !info.IsDir() {
+		return 0, nil
+	}
+
+	// 如果是目录，遍历计算总大小
+	var totalSize int64
+	walkDirErr := filepath.WalkDir(path, func(walkPath string, entry os.DirEntry, err error) error {
+		if err != nil {
+			// 对于不存在的文件，忽略并继续遍历
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return wrapPathError(err, walkPath, "accessing")
+		}
+
+		// 只计算普通文件的大小
+		if entry.Type().IsRegular() {
+			fileInfo, err := entry.Info()
+			if err != nil {
+				// 文件在遍历过程中被删除，忽略
+				if os.IsNotExist(err) {
+					return nil
+				}
+				return wrapPathError(err, walkPath, "getting file info")
+			}
+
+			// 只计算普通文件的大小
+			totalSize += fileInfo.Size()
+		}
+
+		return nil
+	})
+
+	if walkDirErr != nil {
+		return 0, fmt.Errorf("failed to walk directory: %w", walkDirErr)
+	}
+
+	return totalSize, nil
+}

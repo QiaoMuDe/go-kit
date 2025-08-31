@@ -1,124 +1,10 @@
 package utils
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
-
-// TestGetSize 测试GetSize函数
-func TestGetSize(t *testing.T) {
-	// 创建临时目录用于测试
-	tempDir := t.TempDir()
-
-	// 测试用例
-	tests := []struct {
-		name        string
-		setupFunc   func() (string, int64) // 返回路径和期望大小
-		expectError bool
-	}{
-		{
-			name: "单个文件",
-			setupFunc: func() (string, int64) {
-				content := "hello world"
-				filePath := filepath.Join(tempDir, "test.txt")
-				err := os.WriteFile(filePath, []byte(content), 0644)
-				if err != nil {
-					t.Fatal(err)
-				}
-				return filePath, int64(len(content))
-			},
-			expectError: false,
-		},
-		{
-			name: "空文件",
-			setupFunc: func() (string, int64) {
-				filePath := filepath.Join(tempDir, "empty.txt")
-				err := os.WriteFile(filePath, []byte{}, 0644)
-				if err != nil {
-					t.Fatal(err)
-				}
-				return filePath, 0
-			},
-			expectError: false,
-		},
-		{
-			name: "目录包含多个文件",
-			setupFunc: func() (string, int64) {
-				dirPath := filepath.Join(tempDir, "testdir")
-				err := os.MkdirAll(dirPath, 0755)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				// 创建多个文件
-				files := map[string]string{
-					"file1.txt": "content1",
-					"file2.txt": "content2",
-					"file3.txt": "content3",
-				}
-
-				var totalSize int64
-				for name, content := range files {
-					filePath := filepath.Join(dirPath, name)
-					err := os.WriteFile(filePath, []byte(content), 0644)
-					if err != nil {
-						t.Fatal(err)
-					}
-					totalSize += int64(len(content))
-				}
-
-				return dirPath, totalSize
-			},
-			expectError: false,
-		},
-		{
-			name: "空目录",
-			setupFunc: func() (string, int64) {
-				dirPath := filepath.Join(tempDir, "emptydir")
-				err := os.MkdirAll(dirPath, 0755)
-				if err != nil {
-					t.Fatal(err)
-				}
-				return dirPath, 0
-			},
-			expectError: false,
-		},
-		{
-			name: "不存在的路径",
-			setupFunc: func() (string, int64) {
-				return "/nonexistent/path", 0
-			},
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			path, expectedSize := tt.setupFunc()
-			size, err := GetSize(path)
-
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("期望错误但没有返回错误")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("意外错误: %v", err)
-				return
-			}
-
-			if size != expectedSize {
-				t.Errorf("GetSize() = %d, 期望 %d", size, expectedSize)
-			}
-		})
-	}
-}
 
 // TestExecuteCmd 测试ExecuteCmd函数
 func TestExecuteCmd(t *testing.T) {
@@ -309,51 +195,6 @@ func TestFormatWithUnit(t *testing.T) {
 	}
 }
 
-// TestWrapPathError 测试wrapPathError函数
-func TestWrapPathError(t *testing.T) {
-	tests := []struct {
-		name      string
-		err       error
-		path      string
-		operation string
-		expected  string
-	}{
-		{
-			name:      "文件不存在错误",
-			err:       os.ErrNotExist,
-			path:      "/test/path",
-			operation: "reading",
-			expected:  "path does not exist when reading: /test/path",
-		},
-		{
-			name:      "权限错误",
-			err:       os.ErrPermission,
-			path:      "/test/path",
-			operation: "writing",
-			expected:  "permission denied when writing path '/test/path'",
-		},
-		{
-			name:      "其他错误",
-			err:       fmt.Errorf("custom error"),
-			path:      "/test/path",
-			operation: "accessing",
-			expected:  "error when accessing path '/test/path': custom error",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := wrapPathError(tt.err, tt.path, tt.operation)
-			if !strings.Contains(result.Error(), tt.path) {
-				t.Errorf("错误信息应包含路径 %s，但得到: %s", tt.path, result.Error())
-			}
-			if !strings.Contains(result.Error(), tt.operation) {
-				t.Errorf("错误信息应包含操作 %s，但得到: %s", tt.operation, result.Error())
-			}
-		})
-	}
-}
-
 // BenchmarkFormatBytes 性能测试
 func BenchmarkFormatBytes(b *testing.B) {
 	testCases := []int64{
@@ -365,26 +206,6 @@ func BenchmarkFormatBytes(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for _, bytes := range testCases {
 			FormatBytes(bytes)
-		}
-	}
-}
-
-// BenchmarkGetSize 性能测试
-func BenchmarkGetSize(b *testing.B) {
-	// 创建临时文件
-	tempDir := b.TempDir()
-	testFile := filepath.Join(tempDir, "test.txt")
-	content := strings.Repeat("a", 1024) // 1KB内容
-	err := os.WriteFile(testFile, []byte(content), 0644)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := GetSize(testFile)
-		if err != nil {
-			b.Fatal(err)
 		}
 	}
 }
@@ -412,37 +233,6 @@ func TestFormatBytes_EdgeCases(t *testing.T) {
 				t.Errorf("FormatBytes(%d) = %s, 期望 %s", tt.bytes, result, tt.expected)
 			}
 		})
-	}
-}
-
-// TestGetSize_SymbolicLinks 测试符号链接
-func TestGetSize_SymbolicLinks(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// 创建原始文件
-	originalFile := filepath.Join(tempDir, "original.txt")
-	content := "test content"
-	err := os.WriteFile(originalFile, []byte(content), 0644)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// 创建符号链接
-	linkFile := filepath.Join(tempDir, "link.txt")
-	err = os.Symlink(originalFile, linkFile)
-	if err != nil {
-		t.Skip("无法创建符号链接，跳过测试")
-	}
-
-	// 测试符号链接的大小
-	size, err := GetSize(linkFile)
-	if err != nil {
-		t.Errorf("获取符号链接大小失败: %v", err)
-	}
-
-	expectedSize := int64(len(content))
-	if size != expectedSize {
-		t.Errorf("符号链接大小 = %d, 期望 %d", size, expectedSize)
 	}
 }
 

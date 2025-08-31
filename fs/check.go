@@ -28,3 +28,35 @@ func Exists(path string) bool {
 	// 根据实际需求，也可以选择返回错误
 	return false
 }
+
+// IsFile 检查指定路径是否为文件
+// 用于验证指定路径是否为普通文件
+//
+// 参数:
+//   - path: 要检查的路径
+//
+// 返回:
+//   - bool: 是文件返回true，否则返回false
+func IsFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.Mode().IsRegular()
+}
+
+// IsDir 检查指定路径是否为目录
+// 用于验证指定路径是否为目录
+//
+// 参数:
+//   - path: 要检查的路径
+//
+// 返回:
+//   - bool: 是目录返回true，否则返回false
+func IsDir(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.IsDir()
+}
