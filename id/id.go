@@ -254,11 +254,11 @@ func UUID() string {
 }
 
 // GenMaskedID 生成带隐藏时间戳的ID
-// 格式: 4位随机字符串 + 微秒时间戳后8位 + 4位随机字符串
-// 总长度: 16位, 时间戳被随机字符包围, 提供更好的隐蔽性
+// 格式: 6位随机字符串 + 微秒时间戳后8位 + 6位随机字符串
+// 总长度: 20位, 时间戳被随机字符包围, 提供更好的隐蔽性
 //
 // 返回:
-//   - 16位长度的带隐藏时间戳的ID
+//   - 20位长度的带隐藏时间戳的ID
 func GenMaskedID() string {
 	// 获取微秒时间戳的后8位
 	microTimestamp := time.Now().UnixMicro()
@@ -269,15 +269,15 @@ func GenMaskedID() string {
 	r := pool.GetRand()
 	defer pool.PutRand(r)
 
-	return pool.WithString(16, func(buf *strings.Builder) {
-		// 前4位随机字符
-		generateRandomString(r, 4, buf)
+	return pool.WithString(20, func(buf *strings.Builder) {
+		// 前6位随机字符
+		generateRandomString(r, 6, buf)
 
 		// 中间8位时间戳
 		buf.WriteString(timestampPart)
 
-		// 后4位随机字符
-		generateRandomString(r, 4, buf)
+		// 后6位随机字符
+		generateRandomString(r, 6, buf)
 	})
 }
 

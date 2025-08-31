@@ -237,3 +237,33 @@ func BenchmarkRandPool_Operations(b *testing.B) {
 		}
 	})
 }
+
+// BenchmarkRandPool_SeedCost 测试设置随机种子的性能开销
+func BenchmarkRandPool_SeedCost(b *testing.B) {
+	b.Run("WithSeed", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			r := GetRand()
+			// 模拟设置种子的操作
+			r.Seed(time.Now().UnixNano())
+			_ = r.Int()
+			PutRand(r)
+		}
+	})
+
+	b.Run("WithoutSeed", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			r := GetRand()
+			// 不设置种子，直接使用
+			_ = r.Int()
+			PutRand(r)
+		}
+	})
+
+	b.Run("NewRand", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			// 创建新的随机数生成器
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			_ = r.Int()
+		}
+	})
+}

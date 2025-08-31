@@ -25,7 +25,8 @@ func TestIntegration_CommandExecutionAndSizeCheck(t *testing.T) {
 	}
 
 	// 检查文件是否存在
-	if _, err := os.Stat(outputFile); os.IsNotExist(err) {
+	_, errStat := os.Stat(outputFile)
+	if os.IsNotExist(errStat) {
 		t.Fatal("命令执行后文件不存在")
 	}
 
@@ -67,8 +68,8 @@ func TestIntegration_TimeoutAndErrorHandling(t *testing.T) {
 		},
 		{
 			name:          "超时命令",
-			timeout:       time.Millisecond * 50,
-			args:          getSleepCommand("1"),
+			timeout:       time.Millisecond * 200,
+			args:          []string{"ping", "192.0.2.1", "-n", "1"},
 			expectError:   true,
 			expectTimeout: true,
 		},

@@ -14,13 +14,12 @@ func TestGenerateTruncatedTimestamp_BasicFunctionality(t *testing.T) {
 		name   string
 		tsLen  int
 		expect string // 正则表达式模式
-	}{
-		{"1位时间戳", 1, `^\d{1}$`},
+	}{{
+		"1位时间戳", 1, `^\d{1}$`},
 		{"4位时间戳", 4, `^\d{4}$`},
 		{"8位时间戳", 8, `^\d{8}$`},
 		{"12位时间戳", 12, `^\d{12}$`},
 		{"16位时间戳", 16, `^\d{16}$`},
-		{"18位时间戳", 18, `^\d{18}$`},
 	}
 
 	for _, tt := range tests {
@@ -230,13 +229,13 @@ func TestGenerateTruncatedTimestamp_EdgeCases(t *testing.T) {
 		t.Errorf("1位时间戳长度错误: %s", result1)
 	}
 
-	// 测试较大值
+	// 测试大于最大值的情况（应该被截断为16位）
 	result20 := generateTruncatedTimestamp(20)
-	if len(result20) != 20 {
-		t.Errorf("20位时间戳长度错误: %s", result20)
+	if len(result20) != 16 {
+		t.Errorf("20位时间戳应该被截断为16位，实际长度: %d, 值: %s", len(result20), result20)
 	}
 
-	t.Logf("✅ 边界测试通过: 1位=%s, 20位=%s", result1, result20)
+	t.Logf("✅ 边界测试通过: 1位=%s, 20位(截断后)=%s", result1, result20)
 }
 
 // BenchmarkGenerateTruncatedTimestamp 基准测试

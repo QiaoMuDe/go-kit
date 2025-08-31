@@ -29,6 +29,8 @@ var randPool = sync.Pool{
 func GetRand() *rand.Rand {
 	if r := randPool.Get(); r != nil {
 		if gen, ok := r.(*rand.Rand); ok {
+			// 重新设置随机种子，避免复用相同的随机序列
+			gen.Seed(time.Now().UnixNano())
 			return gen
 		}
 	}
