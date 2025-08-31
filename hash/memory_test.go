@@ -109,7 +109,7 @@ func TestHashData_LargeData(t *testing.T) {
 
 	// 验证结果是有效的十六进制字符串
 	for _, char := range result {
-		if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f')) {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
 			t.Errorf("HashData() result contains invalid hex character: %c", char)
 		}
 	}

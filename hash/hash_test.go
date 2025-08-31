@@ -130,7 +130,7 @@ func TestChecksum(t *testing.T) {
 
 		// 验证只包含十六进制字符
 		for _, char := range result {
-			if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f')) {
+			if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
 				t.Errorf("MD5 checksum contains invalid character: %c", char)
 			}
 		}
@@ -165,7 +165,7 @@ func TestChecksum(t *testing.T) {
 
 		// 验证只包含十六进制字符
 		for _, char := range result {
-			if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f')) {
+			if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
 				t.Errorf("SHA1 checksum contains invalid character: %c", char)
 			}
 		}
@@ -191,7 +191,7 @@ func TestChecksum(t *testing.T) {
 
 		// 验证只包含十六进制字符
 		for _, char := range result {
-			if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f')) {
+			if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
 				t.Errorf("SHA256 checksum contains invalid character: %c", char)
 			}
 		}
@@ -217,7 +217,7 @@ func TestChecksum(t *testing.T) {
 
 		// 验证只包含十六进制字符
 		for _, char := range result {
-			if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f')) {
+			if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
 				t.Errorf("SHA512 checksum contains invalid character: %c", char)
 			}
 		}
@@ -243,7 +243,7 @@ func TestChecksum(t *testing.T) {
 
 		// 验证只包含十六进制字符
 		for _, char := range result {
-			if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f')) {
+			if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
 				t.Errorf("SHA256 checksum contains invalid character: %c", char)
 			}
 		}
@@ -298,7 +298,7 @@ func TestChecksum(t *testing.T) {
 		}
 
 		for _, char := range result {
-			if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f')) {
+			if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
 				t.Errorf("MD5 checksum contains invalid character: %c", char)
 			}
 		}
