@@ -130,29 +130,6 @@ func TestGenWithPrefix(t *testing.T) {
 	})
 }
 
-func TestValid(t *testing.T) {
-	t.Run("Valid IDs", func(t *testing.T) {
-		id := GenID(8)
-		if !Valid(id, 8) {
-			t.Errorf("Generated ID should be valid: %s", id)
-		}
-	})
-
-	t.Run("Invalid length", func(t *testing.T) {
-		if Valid("12345", 8) {
-			t.Error("Short ID should be invalid")
-		}
-	})
-
-	t.Run("Edge cases", func(t *testing.T) {
-		// 测试16位时间戳 + 0位随机数
-		id := GenID(0)
-		if !Valid(id, 0) {
-			t.Errorf("Valid 16-digit timestamp should be valid with n=0")
-		}
-	})
-}
-
 // 测试新的GenIDWithLen函数
 func TestGenIDWithLen(t *testing.T) {
 	t.Run("Custom timestamp length", func(t *testing.T) {
@@ -178,19 +155,70 @@ func TestGenIDWithLen(t *testing.T) {
 	})
 }
 
-// 测试新的ValidWithLen函数
-func TestValidWithLen(t *testing.T) {
-	t.Run("Custom length validation", func(t *testing.T) {
-		id := GenIDWithLen(8, 4)
-		if !ValidWithLen(id, 8, 4) {
-			t.Errorf("Generated ID should be valid: %s", id)
+func TestRandomString(t *testing.T) {
+	t.Run("Basic random string generation", func(t *testing.T) {
+		length := 8
+		str := RandomString(length)
+		if str == "" {
+			t.Fatal("RandomString(8) returned empty string")
+		}
+
+		if len(str) != length {
+			t.Errorf("Expected string length %d, got %d", length, len(str))
+		}
+
+		// 验证所有字符都是有效字符
+		for i, char := range str {
+			found := false
+			for _, validChar := range chars {
+				if char == validChar {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("Invalid character at position %d: %c", i, char)
+			}
 		}
 	})
 
-	t.Run("Full timestamp validation", func(t *testing.T) {
-		id := GenIDWithLen(-1, 4)
-		if !ValidWithLen(id, -1, 4) {
-			t.Errorf("Full timestamp ID should be valid: %s", id)
+	t.Run("Zero length", func(t *testing.T) {
+		str := RandomString(0)
+		if str != "" {
+			t.Errorf("Expected empty string for RandomString(0), got: %s", str)
+		}
+	})
+
+	t.Run("Negative length", func(t *testing.T) {
+		str := RandomString(-1)
+		if str != "" {
+			t.Errorf("Expected empty string for RandomString(-1), got: %s", str)
+		}
+	})
+
+	t.Run("Large length", func(t *testing.T) {
+		length := 100
+		str := RandomString(length)
+		if len(str) != length {
+			t.Errorf("Expected string length %d, got %d", length, len(str))
+		}
+	})
+
+	t.Run("Uniqueness check", func(t *testing.T) {
+		length := 8
+		count := 1000
+
+		// 检查随机字符串的唯一性
+		strMap := make(map[string]bool)
+		for i := 0; i < count; i++ {
+			str := RandomString(length)
+			strMap[str] = true
+		}
+
+		// 对于8位随机字符串，期望至少有较高的唯一性
+		uniqueRatio := float64(len(strMap)) / float64(count)
+		if uniqueRatio < 0.95 {
+			t.Errorf("Expected high uniqueness for random strings, got %.1f%% unique", uniqueRatio*100)
 		}
 	})
 }

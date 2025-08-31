@@ -12,10 +12,23 @@ import (
 // 随机字符集(固定62位请勿修改)
 const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
+// generateRandomString 生成指定长度的随机字符串
+// 使用提供的随机数生成器生成随机字符串
+//
+// 参数:
+//   - r: 随机数生成器
+//   - length: 字符串长度
+//   - buf: 字符串构建器
+func generateRandomString(r interface{ Intn(int) int }, length int, buf *strings.Builder) {
+	for i := 0; i < length; i++ {
+		buf.WriteByte(chars[r.Intn(62)])
+	}
+}
+
 // generateTruncatedTimestamp 生成指定长度的截断时间戳
 //
 // 参数:
-//   - tsLen: 时间戳长度，必须大于0
+//   - tsLen: 时间戳长度，必须大于0，最大16位(微秒时间戳长度)
 //
 // 返回:
 //   - 截断后的时间戳字符串
@@ -23,6 +36,11 @@ func generateTruncatedTimestamp(tsLen int) string {
 	// 快速失败：参数验证
 	if tsLen <= 0 {
 		return ""
+	}
+
+	// 限制最大长度为16位(微秒时间戳的实际长度)
+	if tsLen > 16 {
+		tsLen = 16
 	}
 
 	// 计算模数：10^tsLen
@@ -33,14 +51,14 @@ func generateTruncatedTimestamp(tsLen int) string {
 
 	// 生成格式化字符串并应用
 	tsFormat := fmt.Sprintf("%%0%dd", tsLen)
-	return fmt.Sprintf(tsFormat, time.Now().UnixNano()%tsMod)
+	return fmt.Sprintf(tsFormat, time.Now().UnixMicro()%tsMod)
 }
 
 // genIDInternal 内部ID生成方法
 // 用于生成带有时间戳和随机数的ID，支持可配置的时间戳长度
 //
 // 参数:
-//   - tsLen: 时间戳长度，-1表示使用完整时间戳
+//   - tsLen: 时间戳长度，-1表示使用完整时间戳，正数时最大限制为16位
 //   - randLen: 随机部分长度
 //
 // 返回:
@@ -55,8 +73,8 @@ func genIDInternal(tsLen, randLen int) string {
 	var ts string
 	switch {
 	case tsLen == -1:
-		// 使用完整纳秒时间戳
-		ts = fmt.Sprintf("%d", time.Now().UnixNano())
+		// 使用完整微秒时间戳
+		ts = fmt.Sprintf("%d", time.Now().UnixMicro())
 	case tsLen <= 0:
 		// 时间戳长度无效，不生成时间戳部分
 		ts = ""
@@ -78,9 +96,7 @@ func genIDInternal(tsLen, randLen int) string {
 	return pool.WithString(totalLen, func(buf *strings.Builder) {
 		buf.WriteString(ts)
 		// 生成随机数部分
-		for i := 0; i < randLen; i++ {
-			buf.WriteByte(chars[r.Intn(62)])
-		}
+		generateRandomString(r, randLen, buf)
 	})
 
 }
@@ -102,7 +118,7 @@ func GenID(n int) string {
 // 用于生成带有自定义时间戳和随机数长度的ID
 //
 // 参数:
-//   - tsLen: 时间戳长度，-1表示使用完整时间戳
+//   - tsLen: 时间戳长度，-1表示使用完整时间戳，正数时自动限制在16位以内
 //   - randLen: 随机部分长度
 //
 // 返回:
@@ -159,118 +175,6 @@ func GenWithPrefix(prefix string, n int) string {
 	})
 }
 
-// Valid 验证ID格式
-// 用于验证ID是否符合预期格式：前16位数字 + 后n位随机字符
-// 注意：此函数验证的是GenID()生成的默认格式(16位时间戳)
-//
-// 参数:
-//   - id: 要验证的ID字符串
-//   - n: 预期的随机部分长度
-//
-// 返回:
-//   - 格式正确返回true，否则返回false
-func Valid(id string, n int) bool {
-	if len(id) != 16+n {
-		return false
-	}
-
-	// 检查时间戳部分(前16位)
-	for i := 0; i < 16; i++ {
-		if id[i] < '0' || id[i] > '9' {
-			return false
-		}
-	}
-
-	// 检查随机部分
-	for i := 16; i < len(id); i++ {
-		found := false
-		for j := 0; j < 62; j++ {
-			if id[i] == chars[j] {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-
-	return true
-}
-
-// ValidWithLen 验证指定长度的ID格式
-// 用于验证ID是否符合指定的时间戳和随机数长度格式
-//
-// 参数:
-//   - id: 要验证的ID字符串
-//   - tsLen: 预期的时间戳长度，-1表示完整时间戳(纯数字)
-//   - randLen: 预期的随机部分长度
-//
-// 返回:
-//   - 格式正确返回true，否则返回false
-func ValidWithLen(id string, tsLen, randLen int) bool {
-	if tsLen == -1 {
-		// 完整时间戳模式：检查是否以数字开头，后面跟随机字符
-		if len(id) < randLen {
-			return false
-		}
-
-		tsActualLen := len(id) - randLen
-		if tsActualLen <= 0 {
-			return false
-		}
-
-		// 检查时间戳部分(纯数字)
-		for i := 0; i < tsActualLen; i++ {
-			if id[i] < '0' || id[i] > '9' {
-				return false
-			}
-		}
-
-		// 检查随机部分
-		for i := tsActualLen; i < len(id); i++ {
-			found := false
-			for j := 0; j < 62; j++ {
-				if id[i] == chars[j] {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return false
-			}
-		}
-	} else {
-		// 固定时间戳长度模式
-		if len(id) != tsLen+randLen {
-			return false
-		}
-
-		// 检查时间戳部分
-		for i := 0; i < tsLen; i++ {
-			if id[i] < '0' || id[i] > '9' {
-				return false
-			}
-		}
-
-		// 检查随机部分
-		for i := tsLen; i < len(id); i++ {
-			found := false
-			for j := 0; j < 62; j++ {
-				if id[i] == chars[j] {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
 // UUID 生成类UUID格式
 // 用于生成类似UUID的字符串，格式为：8-4-4-4-12
 // 使用crypto/rand提供强随机性，确保并发安全和高唯一性
@@ -289,33 +193,23 @@ func UUID() string {
 
 		return pool.WithString(36, func(buf *strings.Builder) {
 			// 8位
-			for i := 0; i < 8; i++ {
-				buf.WriteByte(chars[r.Intn(62)])
-			}
+			generateRandomString(r, 8, buf)
 			buf.WriteByte('-')
 
 			// 4位
-			for i := 0; i < 4; i++ {
-				buf.WriteByte(chars[r.Intn(62)])
-			}
+			generateRandomString(r, 4, buf)
 			buf.WriteByte('-')
 
 			// 4位
-			for i := 0; i < 4; i++ {
-				buf.WriteByte(chars[r.Intn(62)])
-			}
+			generateRandomString(r, 4, buf)
 			buf.WriteByte('-')
 
 			// 4位
-			for i := 0; i < 4; i++ {
-				buf.WriteByte(chars[r.Intn(62)])
-			}
+			generateRandomString(r, 4, buf)
 			buf.WriteByte('-')
 
 			// 12位
-			for i := 0; i < 12; i++ {
-				buf.WriteByte(chars[r.Intn(62)])
-			}
+			generateRandomString(r, 12, buf)
 		})
 	}
 
@@ -359,20 +253,69 @@ func UUID() string {
 	})
 }
 
-// Short 生成短ID
-// 用于生成基于当前纳秒时间戳的短ID
+// GenMaskedID 生成带隐藏时间戳的ID
+// 格式: 4位随机字符串 + 微秒时间戳后8位 + 4位随机字符串
+// 总长度: 16位, 时间戳被随机字符包围, 提供更好的隐蔽性
 //
 // 返回:
-//   - 纳秒时间戳字符串
-func Short() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
+//   - 16位长度的带隐藏时间戳的ID
+func GenMaskedID() string {
+	// 获取微秒时间戳的后8位
+	microTimestamp := time.Now().UnixMicro()
+	last8Digits := microTimestamp % 100000000 // 取后8位
+	timestampPart := fmt.Sprintf("%08d", last8Digits)
+
+	// 从随机数池获取随机数生成器
+	r := pool.GetRand()
+	defer pool.PutRand(r)
+
+	return pool.WithString(16, func(buf *strings.Builder) {
+		// 前4位随机字符
+		generateRandomString(r, 4, buf)
+
+		// 中间8位时间戳
+		buf.WriteString(timestampPart)
+
+		// 后4位随机字符
+		generateRandomString(r, 4, buf)
+	})
 }
 
-// Nano 生成纳秒级ID
-// 用于生成基于当前纳秒时间戳的ID
+// RandomString 生成指定长度的随机字符串
+// 用于生成仅包含随机字符的字符串，不包含时间戳等其他信息
+//
+// 参数:
+//   - length: 随机字符串长度
+//
+// 返回:
+//   - 生成的随机字符串, 当长度小于0时返回空字符串
+func RandomString(length int) string {
+	// 快速失败：参数验证
+	if length <= 0 {
+		return ""
+	}
+
+	// 获取随机数生成器并生成随机字符串
+	r := pool.GetRand()
+	defer pool.PutRand(r)
+
+	return pool.WithString(length, func(buf *strings.Builder) {
+		generateRandomString(r, length, buf)
+	})
+}
+
+// MicroTime 用于生成基于当前微秒时间戳的ID
+//
+// 返回:
+//   - 微秒时间戳字符串
+func MicroTime() string {
+	return fmt.Sprintf("%d", time.Now().UnixMicro())
+}
+
+// NanoTime 用于生成基于当前纳秒时间戳的ID
 //
 // 返回:
 //   - 纳秒时间戳字符串
-func Nano() string {
+func NanoTime() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano())
 }
