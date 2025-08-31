@@ -12,7 +12,7 @@ import (
 	"os"
 	"strings"
 
-	"gitee.com/MM-Q/go-kit/buffer"
+	"gitee.com/MM-Q/go-kit/pool"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -97,9 +97,9 @@ func checksumCore(filePath, algorithm string, showProgress bool) (string, error)
 
 	// 根据文件大小动态分配缓冲区
 	fileSize := fileInfo.Size()
-	bufferSize := buffer.CalculateBufferSize(fileSize)
-	buf := buffer.Get(bufferSize)
-	defer buffer.Put(buf) // 使用完毕后归还到对象池
+	bufferSize := pool.CalculateBufferSize(fileSize)
+	buf := pool.GetByte(bufferSize)
+	defer pool.PutByte(buf) // 使用完毕后归还到对象池
 
 	// 默认写入器为哈希函数
 	var writer io.Writer = h

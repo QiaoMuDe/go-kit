@@ -1,4 +1,4 @@
-package buffer
+package pool
 
 // 字节单位定义
 const (

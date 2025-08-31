@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitee.com/MM-Q/go-kit/buffer"
+	"gitee.com/MM-Q/go-kit/pool"
 )
 
 // copyFileInternal 内部复制文件逻辑
@@ -88,8 +88,9 @@ func copyFileInternal(src, dst string, overwrite bool) error {
 	}()
 
 	// 根据文件大小计算最佳缓冲区
-	bufSize := buffer.CalculateBufferSize(fi.Size())
-	buf := make([]byte, bufSize)
+	bufSize := pool.CalculateBufferSize(fi.Size())
+	buf := pool.GetByte(bufSize)
+	defer pool.PutByte(buf)
 
 	// 使用缓冲区进行数据拷贝
 	if _, err := io.CopyBuffer(out, in, buf); err != nil {

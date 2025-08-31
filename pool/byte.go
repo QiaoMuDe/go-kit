@@ -1,48 +1,50 @@
-// Package buffer 提供缓冲区管理功能，通过对象池优化内存使用。
+// Package pool 提供高性能对象池管理功能，通过复用对象优化内存使用。
 //
-// 该包实现了基于 sync.Pool 的缓冲区对象池，用于减少频繁的内存分配和回收。
-// 通过复用缓冲区，可以显著提升文件读写、网络I/O等操作的性能。
+// 该包实现了基于 sync.Pool 的多种对象池，用于减少频繁的内存分配和回收。
+// 通过复用对象，可以显著提升应用程序的性能，特别是在高并发场景下。
 //
 // 主要功能：
-//   - 缓冲区对象池管理
-//   - 动态大小缓冲区获取
+//   - 字节切片对象池管理
+//   - 动态大小对象获取
 //   - 自动内存回收控制
 //   - 防止内存泄漏的大小限制
+//   - 支持多种对象类型的池化
 //
 // 性能优化：
 //   - 使用 sync.Pool 减少 GC 压力
-//   - 支持不同大小的缓冲区需求
-//   - 自动限制大缓冲区回收
+//   - 支持不同大小的对象需求
+//   - 自动限制大对象回收
+//   - 预热机制提升冷启动性能
 //
 // 使用示例：
 //
-//	// 获取缓冲区
-//	buf := buffer.Get(64 * 1024)
+//	// 获取字节缓冲区
+//	buf := pool.GetByte(64 * 1024)
 //
 //	// 使用缓冲区进行文件操作
 //	_, err := io.CopyBuffer(dst, src, buf)
 //
 //	// 归还缓冲区到对象池
-//	buffer.Put(buf)
-package buffer
+//	pool.PutByte(buf)
+package pool
 
 import "sync"
 
 // 全局默认对象池实例
 var defaultPool = NewBytePool(32*1024, 1024*1024)
 
-// Get 从默认对象池获取缓冲区
+// GetByte 从默认字节池获取指定大小的缓冲区
 //
 // 参数:
 //   - size: 缓冲区容量大小
 //
 // 返回值:
 //   - []byte: 长度为size，容量至少为size的缓冲区
-func Get(size int) []byte {
+func GetByte(size int) []byte {
 	return defaultPool.Get(size)
 }
 
-// Put 将缓冲区归还到默认对象池
+// PutByte 将缓冲区归还到默认字节池
 //
 // 参数:
 //   - buffer: 要归还的缓冲区
@@ -50,48 +52,48 @@ func Get(size int) []byte {
 // 说明:
 //   - 该函数将缓冲区归还到对象池，以便后续复用。
 //   - 只有容量不超过1MB的缓冲区才会被归还，以避免对象池占用过多内存。
-func Put(buffer []byte) {
+func PutByte(buffer []byte) {
 	defaultPool.Put(buffer)
 }
 
-// GetEmpty 从默认对象池获取空缓冲区
+// GetEmptyByte 从默认字节池获取空缓冲区
 //
 // 参数:
 //   - minCap: 最小容量要求
 //
 // 返回值:
 //   - []byte: 长度为0但容量至少为minCap的缓冲区切片
-func GetEmpty(minCap int) []byte {
+func GetEmptyByte(minCap int) []byte {
 	return defaultPool.GetEmpty(minCap)
 }
 
-// SetMaxSize 动态调整默认对象池的最大回收大小
+// SetByteMaxSize 动态调整默认字节池的最大回收大小
 //
 // 参数:
 //   - maxSize: 新的最大回收大小
-func SetMaxSize(maxSize int) {
+func SetByteMaxSize(maxSize int) {
 	defaultPool.SetMaxSize(maxSize)
 }
 
-// GetMaxSize 获取默认对象池的当前最大回收大小
+// GetByteMaxSize 获取默认字节池的当前最大回收大小
 //
 // 返回值:
 //   - int: 当前最大回收大小
-func GetMaxSize() int {
+func GetByteMaxSize() int {
 	return defaultPool.GetMaxSize()
 }
 
-// Warm 预热默认对象池
+// WarmByte 预热默认字节池
 //
 // 参数:
 //   - count: 预分配的缓冲区数量
 //   - size: 每个缓冲区的大小
-func Warm(count int, size int) {
+func WarmByte(count int, size int) {
 	defaultPool.Warm(count, size)
 }
 
-// Drain 清空默认对象池
-func Drain() {
+// DrainByte 清空默认字节池
+func DrainByte() {
 	defaultPool.Drain()
 }
 
