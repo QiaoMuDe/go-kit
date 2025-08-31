@@ -95,9 +95,12 @@ func checksumCore(filePath, algorithm string, showProgress bool) (string, error)
 	}
 	h := hashFunc()
 
-	// 根据文件大小动态分配缓冲区
+	// 根据文件大小动态分配缓冲区，确保最小为1KB
 	fileSize := fileInfo.Size()
 	bufferSize := pool.CalculateBufferSize(fileSize)
+	if bufferSize < pool.KB {
+		bufferSize = pool.KB
+	}
 	buf := pool.GetByte(bufferSize)
 	defer pool.PutByte(buf) // 使用完毕后归还到对象池
 
