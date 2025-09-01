@@ -38,34 +38,6 @@ Go-Kit 是一个精心设计的Go语言工具包，集成了开发过程中常�
 go get gitee.com/MM-Q/go-kit
 ```
 
-
-### 基本使用
-
-```go
-package main
-
-import (
-    "fmt"
-    "gitee.com/MM-Q/go-kit/str"
-    "gitee.com/MM-Q/go-kit/id"
-    "gitee.com/MM-Q/go-kit/hash"
-)
-
-func main() {
-    // 字符串工具使用示例
-    result := str.CamelCase("hello_world")
-    fmt.Println(result) // HelloWorld
-    
-    // ID生成示例
-    uuid := id.NewUUID()
-    fmt.Println("UUID:", uuid)
-    
-    // 哈希工具示例
-    md5Hash := hash.MD5("hello world")
-    fmt.Println("MD5:", md5Hash)
-}
-```
-
 ## 📚 API文档
 
 ### 核心模块
