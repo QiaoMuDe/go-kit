@@ -10,6 +10,7 @@ import (
 	"hash"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gitee.com/MM-Q/go-kit/pool"
@@ -112,12 +113,12 @@ func checksumCore(filePath, algorithm string, showProgress bool) (string, error)
 		bar := progressbar.NewOptions64(
 			fileSize,                          // 进度条总长度
 			progressbar.OptionClearOnFinish(), // 结束时清除进度条
-			progressbar.OptionSetDescription(file.Name()+" 计算中..."), // 显示描述
-			progressbar.OptionSetElapsedTime(true),                  // 显示已用时间
-			progressbar.OptionSetPredictTime(true),                  // 显示预计剩余时间
-			progressbar.OptionSetRenderBlankState(true),             // 在进度条完成之前显示空白状态
-			progressbar.OptionShowBytes(true),                       // 显示进度条传输的字节
-			progressbar.OptionShowCount(),                           // 显示当前进度的总和
+			progressbar.OptionSetDescription(fmt.Sprintf("正在计算 '%s' 的校验和...", filepath.Base(filePath))), // 显示描述
+			progressbar.OptionSetElapsedTime(true),      // 显示已用时间
+			progressbar.OptionSetPredictTime(true),      // 显示预计剩余时间
+			progressbar.OptionSetRenderBlankState(true), // 在进度条完成之前显示空白状态
+			progressbar.OptionShowBytes(true),           // 显示进度条传输的字节
+			progressbar.OptionShowCount(),               // 显示当前进度的总和
 			//progressbar.OptionShowElapsedTimeOnFinish(),        // 完成后显示已用时间
 			progressbar.OptionSetTheme(progressbar.ThemeASCII), // ASCII 进度条主题(默认为 Unicode 进度条主题)
 			progressbar.OptionFullWidth(),                      // 设置进度条为终端最大宽度
