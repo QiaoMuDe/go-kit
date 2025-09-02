@@ -113,7 +113,7 @@ func checksumCore(filePath, algorithm string, showProgress bool) (string, error)
 		bar := progressbar.NewOptions64(
 			fileSize,                          // 进度条总长度
 			progressbar.OptionClearOnFinish(), // 结束时清除进度条
-			progressbar.OptionSetDescription(fmt.Sprintf("正在计算 '%s' 的校验和...", filepath.Base(filePath))), // 显示描述
+			progressbar.OptionSetDescription(fmt.Sprintf("正在处理'%s'('%s')", filepath.Base(filePath), strings.ToUpper(algorithm))), // 显示描述
 			progressbar.OptionSetElapsedTime(true),      // 显示已用时间
 			progressbar.OptionSetPredictTime(true),      // 显示预计剩余时间
 			progressbar.OptionSetRenderBlankState(true), // 在进度条完成之前显示空白状态
