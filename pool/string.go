@@ -9,13 +9,13 @@ import (
 //
 // 说明:
 //   - 该实例用于在全局范围内管理字符串构建器对象，避免频繁创建和销毁对象导致的性能问题。
-//   - 初始容量为256，最大回收大小为32KB。
+//   - 初始容量为256，最大回收容量为32KB。
 var defaultStringPool = NewStringPool(256, 32*1024)
 
 // GetString 从默认字符串池获取默认容量的字符串构建器
 //
 // 返回值:
-//   - *strings.Builder: 容量至少为默认大小的字符串构建器
+//   - *strings.Builder: 容量至少为默认容量的字符串构建器
 func GetString() *strings.Builder {
 	return defaultStringPool.Get()
 }
@@ -23,7 +23,7 @@ func GetString() *strings.Builder {
 // GetStringWithCapacity 从默认字符串池获取指定容量的字符串构建器
 //
 // 参数:
-//   - capacity: 字符串构建器初始容量大小
+//   - capacity: 字符串构建器初始容量
 //
 // 返回值:
 //   - *strings.Builder: 容量至少为capacity的字符串构建器
@@ -78,7 +78,7 @@ func WithString(fn func(*strings.Builder)) string {
 // WithStringCapacity 使用指定容量的字符串构建器执行函数，自动管理获取和归还
 //
 // 参数:
-//   - capacity: 字符串构建器初始容量大小
+//   - capacity: 字符串构建器初始容量
 //   - fn: 使用字符串构建器的函数
 //
 // 返回值:
@@ -97,34 +97,34 @@ func WithStringCapacity(capacity int, fn func(*strings.Builder)) string {
 
 // StringPool 字符串构建器对象池，支持自定义配置
 type StringPool struct {
-	pool        sync.Pool // 字符串构建器对象池
-	maxSize     int       // 最大回收构建器大小
-	defaultSize int       // 默认构建器大小
+	pool            sync.Pool // 字符串构建器对象池
+	maxCapacity     int       // 最大回收构建器容量
+	defaultCapacity int       // 默认构建器容量
 }
 
 // NewStringPool 创建新的字符串构建器对象池
 //
 // 参数:
-//   - defaultSize: 默认字符串构建器容量大小
-//   - maxSize: 最大回收构建器大小，超过此大小的构建器不会被回收
+//   - defaultCapacity: 默认字符串构建器容量
+//   - maxCapacity: 最大回收构建器容量，超过此容量的构建器不会被回收
 //
 // 返回值:
 //   - *StringPool: 字符串构建器对象池实例
-func NewStringPool(defaultSize, maxSize int) *StringPool {
-	if defaultSize <= 0 {
-		defaultSize = 256 // 默认256字节
+func NewStringPool(defaultCapacity, maxCapacity int) *StringPool {
+	if defaultCapacity <= 0 {
+		defaultCapacity = 256 // 默认256字节
 	}
-	if maxSize <= 0 {
-		maxSize = 32 * 1024 // 默认32KB
+	if maxCapacity <= 0 {
+		maxCapacity = 32 * 1024 // 默认32KB
 	}
 
 	return &StringPool{
-		maxSize:     maxSize,
-		defaultSize: defaultSize,
+		maxCapacity:     maxCapacity,
+		defaultCapacity: defaultCapacity,
 		pool: sync.Pool{
 			New: func() any {
 				builder := &strings.Builder{}
-				builder.Grow(defaultSize) // 预分配容量
+				builder.Grow(defaultCapacity) // 预分配容量
 				return builder
 			},
 		},
@@ -134,19 +134,19 @@ func NewStringPool(defaultSize, maxSize int) *StringPool {
 // Get 获取默认容量的字符串构建器
 //
 // 返回:
-//   - *strings.Builder: 容量至少为默认大小的字符串构建器
+//   - *strings.Builder: 容量至少为默认容量的字符串构建器
 //
 // 说明:
 //   - 返回的字符串构建器已经重置为空状态，可以直接使用
-//   - 底层容量可能大于默认大小，来自对象池的复用构建器
+//   - 底层容量可能大于默认容量，来自对象池的复用构建器
 func (sp *StringPool) Get() *strings.Builder {
-	return sp.GetWithCapacity(sp.defaultSize)
+	return sp.GetWithCapacity(sp.defaultCapacity)
 }
 
 // GetWithCapacity 获取指定容量的字符串构建器
 //
 // 参数:
-//   - capacity: 需要的字符串构建器容量大小
+//   - capacity: 需要的字符串构建器容量
 //
 // 返回:
 //   - *strings.Builder: 容量至少为capacity的字符串构建器
@@ -157,7 +157,7 @@ func (sp *StringPool) Get() *strings.Builder {
 //   - 如果capacity <= 0, 返回默认容量的构建器
 func (sp *StringPool) GetWithCapacity(capacity int) *strings.Builder {
 	if capacity <= 0 {
-		capacity = sp.defaultSize
+		capacity = sp.defaultCapacity
 	}
 	builder, ok := sp.pool.Get().(*strings.Builder)
 	if !ok {
@@ -168,7 +168,7 @@ func (sp *StringPool) GetWithCapacity(capacity int) *strings.Builder {
 		return builder
 	}
 
-	// 如果当前容量不足，扩容到所需大小
+	// 如果当前容量不足，扩容到所需容量
 	if builder.Cap() < capacity {
 		builder.Grow(capacity - builder.Cap())
 	}
@@ -186,25 +186,25 @@ func (sp *StringPool) GetWithCapacity(capacity int) *strings.Builder {
 //
 // 说明:
 //   - nil构建器不会被回收
-//   - 容量不超过maxSize的构建器直接重置后归还
-//   - 容量超过maxSize的构建器会创建一个新的小容量构建器进行归还（智能缩容）
+//   - 容量不超过maxCapacity的构建器直接重置后归还
+//   - 容量超过maxCapacity的构建器会创建一个新的小容量构建器进行归还（智能缩容）
 func (sp *StringPool) Put(builder *strings.Builder) {
 	// 不回收nil构建器
 	if builder == nil {
 		return
 	}
 
-	// 如果容量不超过最大回收大小，直接重置后归还
-	if builder.Cap() <= sp.maxSize {
+	// 如果容量不超过最大回收容量，直接重置后归还
+	if builder.Cap() <= sp.maxCapacity {
 		builder.Reset()
 		sp.pool.Put(builder)
 		return
 	}
 
-	// 对于容量超过最大回收大小的构建器，创建一个新的小容量构建器进行归还
+	// 对于容量超过最大回收容量的构建器，创建一个新的小容量构建器进行归还
 	// 这样可以避免大容量构建器占用过多内存，同时保持对象池的复用性
 	newBuilder := &strings.Builder{}
-	newBuilder.Grow(sp.maxSize) // 预分配容量为maxSize
+	newBuilder.Grow(sp.maxCapacity) // 预分配容量为maxCapacity
 	newBuilder.Reset()
 	sp.pool.Put(newBuilder)
 }
@@ -249,7 +249,7 @@ func (sp *StringPool) Drain() {
 	sp.pool = sync.Pool{
 		New: func() any {
 			builder := &strings.Builder{}
-			builder.Grow(sp.defaultSize) // 预分配容量
+			builder.Grow(sp.defaultCapacity) // 预分配容量
 			return builder
 		},
 	}
@@ -280,7 +280,7 @@ func (sp *StringPool) WithString(fn func(*strings.Builder)) string {
 // WithStringCapacity 使用指定容量的字符串构建器执行函数，自动管理获取和归还
 //
 // 参数:
-//   - capacity: 字符串构建器初始容量大小
+//   - capacity: 字符串构建器初始容量
 //   - fn: 使用字符串构建器的函数
 //
 // 返回值:

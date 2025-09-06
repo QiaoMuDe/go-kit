@@ -11,7 +11,7 @@ var defaultBufferPool = NewBufferPool(256, 32*1024)
 // GetBuffer 从默认缓冲区池获取默认容量的字节缓冲区
 //
 // 返回值:
-//   - *bytes.Buffer: 容量至少为默认大小的字节缓冲区
+//   - *bytes.Buffer: 容量至少为默认容量的字节缓冲区
 func GetBuffer() *bytes.Buffer {
 	return defaultBufferPool.Get()
 }
@@ -19,7 +19,7 @@ func GetBuffer() *bytes.Buffer {
 // GetBufferWithCapacity 从默认缓冲区池获取指定容量的字节缓冲区
 //
 // 参数:
-//   - capacity: 缓冲区初始容量大小
+//   - capacity: 缓冲区初始容量
 //
 // 返回值:
 //   - *bytes.Buffer: 容量至少为capacity的字节缓冲区
@@ -74,7 +74,7 @@ func WithBuffer(fn func(*bytes.Buffer)) []byte {
 // WithBufferCapacity 使用指定容量的字节缓冲区执行函数，自动管理获取和归还
 //
 // 参数:
-//   - capacity: 字节缓冲区初始容量大小
+//   - capacity: 字节缓冲区初始容量
 //   - fn: 使用字节缓冲区的函数
 //
 // 返回值:
@@ -93,34 +93,34 @@ func WithBufferCapacity(capacity int, fn func(*bytes.Buffer)) []byte {
 
 // BufferPool 字节缓冲区对象池，支持自定义配置
 type BufferPool struct {
-	pool        sync.Pool // 字节缓冲区对象池
-	maxSize     int       // 最大回收缓冲区大小
-	defaultSize int       // 默认缓冲区大小
+	pool            sync.Pool // 字节缓冲区对象池
+	maxCapacity     int       // 最大回收缓冲区容量
+	defaultCapacity int       // 默认缓冲区容量
 }
 
 // NewBufferPool 创建新的字节缓冲区对象池
 //
 // 参数:
-//   - defaultSize: 默认字节缓冲区容量大小
-//   - maxSize: 最大回收缓冲区大小，超过此大小的缓冲区不会被回收
+//   - defaultCapacity: 默认字节缓冲区容量
+//   - maxCapacity: 最大回收缓冲区容量，超过此容量的缓冲区不会被回收
 //
 // 返回值:
 //   - *BufferPool: 字节缓冲区对象池实例
-func NewBufferPool(defaultSize, maxSize int) *BufferPool {
-	if defaultSize <= 0 {
-		defaultSize = 256 // 默认256字节
+func NewBufferPool(defaultCapacity, maxCapacity int) *BufferPool {
+	if defaultCapacity <= 0 {
+		defaultCapacity = 256 // 默认256字节
 	}
-	if maxSize <= 0 {
-		maxSize = 32 * 1024 // 默认32KB
+	if maxCapacity <= 0 {
+		maxCapacity = 32 * 1024 // 默认32KB
 	}
 
 	return &BufferPool{
-		maxSize:     maxSize,
-		defaultSize: defaultSize,
+		maxCapacity:     maxCapacity,
+		defaultCapacity: defaultCapacity,
 		pool: sync.Pool{
 			New: func() any {
 				buffer := &bytes.Buffer{}
-				buffer.Grow(defaultSize) // 预分配容量
+				buffer.Grow(defaultCapacity) // 预分配容量
 				return buffer
 			},
 		},
@@ -130,19 +130,19 @@ func NewBufferPool(defaultSize, maxSize int) *BufferPool {
 // Get 获取默认容量的字节缓冲区
 //
 // 返回:
-//   - *bytes.Buffer: 容量至少为默认大小的字节缓冲区
+//   - *bytes.Buffer: 容量至少为默认容量的字节缓冲区
 //
 // 说明:
 //   - 返回的字节缓冲区已经重置为空状态，可以直接使用
-//   - 底层容量可能大于默认大小，来自对象池的复用缓冲区
+//   - 底层容量可能大于默认容量，来自对象池的复用缓冲区
 func (bp *BufferPool) Get() *bytes.Buffer {
-	return bp.GetWithCapacity(bp.defaultSize)
+	return bp.GetWithCapacity(bp.defaultCapacity)
 }
 
 // GetWithCapacity 获取指定容量的字节缓冲区
 //
 // 参数:
-//   - capacity: 需要的字节缓冲区容量大小
+//   - capacity: 需要的字节缓冲区容量
 //
 // 返回:
 //   - *bytes.Buffer: 容量至少为capacity的字节缓冲区
@@ -153,7 +153,7 @@ func (bp *BufferPool) Get() *bytes.Buffer {
 //   - 如果capacity <= 0, 返回默认容量的缓冲区
 func (bp *BufferPool) GetWithCapacity(capacity int) *bytes.Buffer {
 	if capacity <= 0 {
-		capacity = bp.defaultSize
+		capacity = bp.defaultCapacity
 	}
 	buffer, ok := bp.pool.Get().(*bytes.Buffer)
 	if !ok {
@@ -164,7 +164,7 @@ func (bp *BufferPool) GetWithCapacity(capacity int) *bytes.Buffer {
 		return buffer
 	}
 
-	// 如果当前容量不足，扩容到所需大小
+	// 如果当前容量不足，扩容到所需容量
 	if buffer.Cap() < capacity {
 		buffer.Grow(capacity - buffer.Cap())
 	}
@@ -184,17 +184,17 @@ func (bp *BufferPool) Put(buffer *bytes.Buffer) {
 		return // 不回收nil
 	}
 
-	// 容量小于等于最大回收大小，归还到对象池
-	if buffer.Cap() <= bp.maxSize {
+	// 容量小于等于最大回收容量，归还到对象池
+	if buffer.Cap() <= bp.maxCapacity {
 		buffer.Reset()
 		bp.pool.Put(buffer)
 		return
 	}
 
-	// 对于容量超过最大回收大小的构建器，创建一个新的小容量构建器进行归还
+	// 对于容量超过最大回收容量的构建器，创建一个新的小容量构建器进行归还
 	// 这样可以避免大容量构建器占用过多内存，同时保持对象池的复用性
 	newBuffer := &bytes.Buffer{}
-	newBuffer.Grow(bp.maxSize)
+	newBuffer.Grow(bp.maxCapacity)
 	newBuffer.Reset()
 	bp.pool.Put(newBuffer)
 }
@@ -239,7 +239,7 @@ func (bp *BufferPool) Drain() {
 	bp.pool = sync.Pool{
 		New: func() any {
 			buffer := &bytes.Buffer{}
-			buffer.Grow(bp.defaultSize) // 预分配容量
+			buffer.Grow(bp.defaultCapacity) // 预分配容量
 			return buffer
 		},
 	}
@@ -273,7 +273,7 @@ func (bp *BufferPool) WithBuffer(fn func(*bytes.Buffer)) []byte {
 // WithBufferCapacity 使用指定容量的字节缓冲区执行函数，自动管理获取和归还
 //
 // 参数:
-//   - capacity: 字节缓冲区初始容量大小
+//   - capacity: 字节缓冲区初始容量
 //   - fn: 使用字节缓冲区的函数
 //
 // 返回值:

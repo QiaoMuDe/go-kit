@@ -47,7 +47,7 @@ func GetByte() []byte {
 // GetByteWithCapacity 从默认字节池获取指定容量的缓冲区
 //
 // 参数:
-//   - capacity: 缓冲区容量大小
+//   - capacity: 缓冲区容量
 //
 // 返回值:
 //   - []byte: 长度为capacity, 容量至少为capacity的缓冲区
