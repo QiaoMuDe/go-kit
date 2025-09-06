@@ -31,17 +31,6 @@ func PutString(builder *strings.Builder) {
 	defaultStringPool.Put(builder)
 }
 
-// GetEmptyString 从默认字符串池获取空的字符串构建器
-//
-// 参数:
-//   - minCap: 最小容量要求
-//
-// 返回值:
-//   - *strings.Builder: 长度为0但容量至少为minCap的字符串构建器
-func GetEmptyString(minCap int) *strings.Builder {
-	return defaultStringPool.GetEmpty(minCap)
-}
-
 // SetStringMaxSize 动态调整默认字符串池的最大回收大小
 //
 // 参数:
@@ -163,46 +152,30 @@ func (sp *StringPool) Get(capacity int) *strings.Builder {
 //
 // 参数:
 //   - builder: 要归还的字符串构建器
-func (sp *StringPool) Put(builder *strings.Builder) {
-	if builder == nil || builder.Cap() > sp.maxSize {
-		return // 不回收nil或超过最大大小的构建器
-	}
-
-	// 重置构建器状态，清空内容
-	builder.Reset()
-
-	sp.pool.Put(builder)
-}
-
-// GetEmpty 获取指定容量的空字符串构建器
-//
-// 参数:
-//   - minCap: 最小容量要求
-//
-// 返回:
-//   - *strings.Builder: 长度为0但容量至少为minCap的字符串构建器
 //
 // 说明:
-//   - 适用于需要逐步构建字符串的场景
-//   - 避免频繁的内存重新分配
-func (sp *StringPool) GetEmpty(minCap int) *strings.Builder {
-	builder, ok := sp.pool.Get().(*strings.Builder)
-	if !ok {
-		// 类型断言失败，创建新的
-		builder = &strings.Builder{}
-		builder.Grow(minCap)
-		return builder
+//   - nil构建器不会被回收
+//   - 容量不超过maxSize的构建器直接重置后归还
+//   - 容量超过maxSize的构建器会创建一个新的小容量构建器进行归还（智能缩容）
+func (sp *StringPool) Put(builder *strings.Builder) {
+	// 不回收nil构建器
+	if builder == nil {
+		return
 	}
 
-	// 重置构建器状态
-	builder.Reset()
-
-	// 如果当前容量不足，扩容到所需大小
-	if builder.Cap() < minCap {
-		builder.Grow(minCap - builder.Cap())
+	// 如果容量不超过最大回收大小，直接重置后归还
+	if builder.Cap() <= sp.maxSize {
+		builder.Reset()
+		sp.pool.Put(builder)
+		return
 	}
 
-	return builder
+	// 对于容量超过最大回收大小的构建器，创建一个新的小容量构建器进行归还
+	// 这样可以避免大容量构建器占用过多内存，同时保持对象池的复用性
+	newBuilder := &strings.Builder{}
+	newBuilder.Grow(sp.maxSize) // 预分配容量为maxSize
+	newBuilder.Reset()
+	sp.pool.Put(newBuilder)
 }
 
 // SetMaxSize 动态调整最大回收构建器大小

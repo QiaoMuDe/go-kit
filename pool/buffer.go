@@ -31,17 +31,6 @@ func PutBuffer(buffer *bytes.Buffer) {
 	defaultBufferPool.Put(buffer)
 }
 
-// GetEmptyBuffer 从默认缓冲区池获取空的字节缓冲区
-//
-// 参数:
-//   - minCap: 最小容量要求
-//
-// 返回值:
-//   - *bytes.Buffer: 长度为0但容量至少为minCap的字节缓冲区
-func GetEmptyBuffer(minCap int) *bytes.Buffer {
-	return defaultBufferPool.GetEmpty(minCap)
-}
-
 // SetBufferMaxSize 动态调整默认缓冲区池的最大回收大小
 //
 // 参数:
@@ -164,45 +153,23 @@ func (bp *BufferPool) Get(capacity int) *bytes.Buffer {
 // 参数:
 //   - buffer: 要归还的字节缓冲区
 func (bp *BufferPool) Put(buffer *bytes.Buffer) {
-	if buffer == nil || buffer.Cap() > bp.maxSize {
-		return // 不回收nil或超过最大大小的缓冲区
+	if buffer == nil {
+		return // 不回收nil
 	}
 
-	// 重置缓冲区状态，清空内容
-	buffer.Reset()
-
-	bp.pool.Put(buffer)
-}
-
-// GetEmpty 获取指定容量的空字节缓冲区
-//
-// 参数:
-//   - minCap: 最小容量要求
-//
-// 返回:
-//   - *bytes.Buffer: 长度为0但容量至少为minCap的字节缓冲区
-//
-// 说明:
-//   - 适用于需要逐步写入数据的场景
-//   - 避免频繁的内存重新分配
-func (bp *BufferPool) GetEmpty(minCap int) *bytes.Buffer {
-	buffer, ok := bp.pool.Get().(*bytes.Buffer)
-	if !ok {
-		// 类型断言失败，创建新的
-		buffer = &bytes.Buffer{}
-		buffer.Grow(minCap)
-		return buffer
+	// 容量小于等于最大回收大小，归还到对象池
+	if buffer.Cap() <= bp.maxSize {
+		buffer.Reset()
+		bp.pool.Put(buffer)
+		return
 	}
 
-	// 重置缓冲区状态
-	buffer.Reset()
-
-	// 如果当前容量不足，扩容到所需大小
-	if buffer.Cap() < minCap {
-		buffer.Grow(minCap - buffer.Cap())
-	}
-
-	return buffer
+	// 对于容量超过最大回收大小的构建器，创建一个新的小容量构建器进行归还
+	// 这样可以避免大容量构建器占用过多内存，同时保持对象池的复用性
+	newBuffer := &bytes.Buffer{}
+	newBuffer.Grow(bp.maxSize)
+	newBuffer.Reset()
+	bp.pool.Put(newBuffer)
 }
 
 // SetMaxSize 动态调整最大回收缓冲区大小

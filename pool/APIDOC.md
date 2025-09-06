@@ -164,20 +164,6 @@ GetByteMaxSize 获取默认字节池的当前最大回收大小
 **返回值:**
 - `int`: 当前最大回收大小
 
-### func GetEmptyBuffer
-
-```go
-func GetEmptyBuffer(minCap int) *bytes.Buffer
-```
-
-GetEmptyBuffer 从默认缓冲区池获取空的字节缓冲区
-
-**参数:**
-- `minCap`: 最小容量要求
-
-**返回值:**
-- `*bytes.Buffer`: 长度为0但容量至少为minCap的字节缓冲区
-
 ### func GetEmptyByte
 
 ```go
@@ -191,20 +177,6 @@ GetEmptyByte 从默认字节池获取空缓冲区
 
 **返回值:**
 - `[]byte`: 长度为0但容量至少为minCap的缓冲区切片
-
-### func GetEmptyString
-
-```go
-func GetEmptyString(minCap int) *strings.Builder
-```
-
-GetEmptyString 从默认字符串池获取空的字符串构建器
-
-**参数:**
-- `minCap`: 最小容量要求
-
-**返回值:**
-- `*strings.Builder`: 长度为0但容量至少为minCap的字符串构建器
 
 ### func GetRand
 
