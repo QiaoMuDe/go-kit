@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-// 全局默认缓冲区池实例
+// 全局默认缓冲区池实例, 初始容量为256, 最大容量为32KB
 var defBufPool = NewBufferPool(256, 32*1024)
 
 // GetBuffer 从默认缓冲区池获取默认容量的字节缓冲区
@@ -21,9 +21,7 @@ func GetBuffer() *bytes.Buffer { return defBufPool.Get() }
 //
 // 返回值:
 //   - *bytes.Buffer: 容量至少为capacity的字节缓冲区
-func GetBufferWithCapacity(capacity int) *bytes.Buffer {
-	return defBufPool.GetWithCapacity(capacity)
-}
+func GetBufferWithCapacity(capacity int) *bytes.Buffer { return defBufPool.GetWithCapacity(capacity) }
 
 // PutBuffer 将字节缓冲区归还到默认缓冲区池
 //
@@ -155,7 +153,7 @@ func (bp *BufferPool) GetWithCapacity(capacity int) *bytes.Buffer {
 //   - buffer: 要归还的字节缓冲区
 func (bp *BufferPool) Put(buf *bytes.Buffer) {
 	if buf == nil || buf.Cap() > bp.maxCapacity {
-		return // 直接扔
+		return // 为nil或容量过大不处理, 交给gc回收
 	}
 	buf.Reset()
 	bp.pool.Put(buf)
@@ -178,7 +176,6 @@ func (bp *BufferPool) Put(buf *bytes.Buffer) {
 func (bp *BufferPool) WithBuffer(fn func(*bytes.Buffer)) []byte {
 	buf := bp.Get()
 	defer bp.Put(buf)
-
 	fn(buf)
 	return append([]byte(nil), buf.Bytes()...) // 一次性拷贝
 }

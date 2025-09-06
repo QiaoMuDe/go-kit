@@ -10,53 +10,35 @@ import (
 // 说明:
 //   - 该实例用于在全局范围内管理字符串构建器对象，避免频繁创建和销毁对象导致的性能问题。
 //   - 初始容量为256，最大回收容量为32KB。
-var defaultStringPool = NewStringPool(256, 32*1024)
+var defStrPool = NewStrPool(256, 32*1024)
 
-// GetString 从默认字符串池获取默认容量的字符串构建器
+// GetStr 从默认字符串池获取默认容量的字符串构建器
 //
 // 返回值:
 //   - *strings.Builder: 容量至少为默认容量的字符串构建器
-func GetString() *strings.Builder {
-	return defaultStringPool.Get()
-}
+func GetStr() *strings.Builder { return defStrPool.Get() }
 
-// GetStringWithCapacity 从默认字符串池获取指定容量的字符串构建器
+// GetStrCap 从默认字符串池获取指定容量的字符串构建器
 //
 // 参数:
-//   - capacity: 字符串构建器初始容量
+//   - cap: 字符串构建器初始容量
 //
 // 返回值:
 //   - *strings.Builder: 容量至少为capacity的字符串构建器
-func GetStringWithCapacity(capacity int) *strings.Builder {
-	return defaultStringPool.GetWithCapacity(capacity)
+func GetStrCap(cap int) *strings.Builder {
+	return defStrPool.GetCap(cap)
 }
 
-// PutString 将字符串构建器归还到默认字符串池
+// PutStr 将字符串构建器归还到默认字符串池
 //
 // 参数:
-//   - builder: 要归还的字符串构建器
+//   - b: 要归还的字符串构建器
 //
 // 说明:
 //   - 该函数将字符串构建器归还到对象池，以便后续复用。
-func PutString(builder *strings.Builder) {
-	defaultStringPool.Put(builder)
-}
+func PutStr(b *strings.Builder) { defStrPool.Put(b) }
 
-// WarmString 预热默认字符串池
-//
-// 参数:
-//   - count: 预分配的字符串构建器数量
-//   - capacity: 每个字符串构建器的容量
-func WarmString(count int, capacity int) {
-	defaultStringPool.Warm(count, capacity)
-}
-
-// DrainString 清空默认字符串池
-func DrainString() {
-	defaultStringPool.Drain()
-}
-
-// WithString 使用默认容量的字符串构建器执行函数，自动管理获取和归还
+// WithStr 使用默认容量的字符串构建器执行函数，自动管理获取和归还
 //
 // 参数:
 //   - fn: 使用字符串构建器的函数
@@ -66,19 +48,17 @@ func DrainString() {
 //
 // 使用示例:
 //
-//	result := pool.WithString(func(buf *strings.Builder) {
+//	result := pool.WithStr(func(buf *strings.Builder) {
 //	    buf.WriteString("Hello")
 //	    buf.WriteByte(' ')
 //	    buf.WriteString("World")
 //	})
-func WithString(fn func(*strings.Builder)) string {
-	return defaultStringPool.WithString(fn)
-}
+func WithStr(fn func(*strings.Builder)) string { return defStrPool.With(fn) }
 
-// WithStringCapacity 使用指定容量的字符串构建器执行函数，自动管理获取和归还
+// WithStrCap 使用指定容量的字符串构建器执行函数，自动管理获取和归还
 //
 // 参数:
-//   - capacity: 字符串构建器初始容量
+//   - cap: 字符串构建器初始容量
 //   - fn: 使用字符串构建器的函数
 //
 // 返回值:
@@ -86,46 +66,44 @@ func WithString(fn func(*strings.Builder)) string {
 //
 // 使用示例:
 //
-//	result := pool.WithStringCapacity(64, func(buf *strings.Builder) {
+//	result := pool.WithStrCap(64, func(buf *strings.Builder) {
 //	    buf.WriteString("Hello")
 //	    buf.WriteByte(' ')
 //	    buf.WriteString("World")
 //	})
-func WithStringCapacity(capacity int, fn func(*strings.Builder)) string {
-	return defaultStringPool.WithStringCapacity(capacity, fn)
+func WithStrCap(cap int, fn func(*strings.Builder)) string {
+	return defStrPool.WithCap(cap, fn)
 }
 
-// StringPool 字符串构建器对象池，支持自定义配置
-type StringPool struct {
-	pool            sync.Pool // 字符串构建器对象池
-	maxCapacity     int       // 最大回收构建器容量
-	defaultCapacity int       // 默认构建器容量
+// StrPool 字符串构建器对象池，支持自定义配置
+type StrPool struct {
+	pool    sync.Pool // 字符串构建器对象池
+	maxCap  int       // 最大回收构建器容量
+	deftCap int       // 默认构建器容量
 }
 
-// NewStringPool 创建新的字符串构建器对象池
+// NewStrPool 创建新的字符串构建器对象池
 //
 // 参数:
-//   - defaultCapacity: 默认字符串构建器容量
-//   - maxCapacity: 最大回收构建器容量，超过此容量的构建器不会被回收
+//   - deftCap: 默认字符串构建器容量
+//   - maxCap: 最大回收构建器容量，超过此容量的构建器不会被回收
 //
 // 返回值:
-//   - *StringPool: 字符串构建器对象池实例
-func NewStringPool(defaultCapacity, maxCapacity int) *StringPool {
-	if defaultCapacity <= 0 {
-		defaultCapacity = 256 // 默认256字节
+//   - *StrPool: 字符串构建器对象池实例
+func NewStrPool(deftCap, maxCap int) *StrPool {
+	if deftCap <= 0 {
+		deftCap = 256 // 默认256字节
 	}
-	if maxCapacity <= 0 {
-		maxCapacity = 32 * 1024 // 默认32KB
+	if maxCap <= 0 {
+		maxCap = 32 * 1024 // 默认32KB
 	}
 
-	return &StringPool{
-		maxCapacity:     maxCapacity,
-		defaultCapacity: defaultCapacity,
+	return &StrPool{
+		maxCap:  maxCap,
+		deftCap: deftCap,
 		pool: sync.Pool{
 			New: func() any {
-				builder := &strings.Builder{}
-				builder.Grow(defaultCapacity) // 预分配容量
-				return builder
+				return new(strings.Builder)
 			},
 		},
 	}
@@ -139,14 +117,14 @@ func NewStringPool(defaultCapacity, maxCapacity int) *StringPool {
 // 说明:
 //   - 返回的字符串构建器已经重置为空状态，可以直接使用
 //   - 底层容量可能大于默认容量，来自对象池的复用构建器
-func (sp *StringPool) Get() *strings.Builder {
-	return sp.GetWithCapacity(sp.defaultCapacity)
+func (sp *StrPool) Get() *strings.Builder {
+	return sp.GetCap(sp.deftCap)
 }
 
-// GetWithCapacity 获取指定容量的字符串构建器
+// GetCap 获取指定容量的字符串构建器
 //
 // 参数:
-//   - capacity: 需要的字符串构建器容量
+//   - cap: 需要的字符串构建器容量
 //
 // 返回:
 //   - *strings.Builder: 容量至少为capacity的字符串构建器
@@ -155,22 +133,18 @@ func (sp *StringPool) Get() *strings.Builder {
 //   - 返回的字符串构建器已经重置为空状态，可以直接使用
 //   - 底层容量可能大于capacity，来自对象池的复用构建器
 //   - 如果capacity <= 0, 返回默认容量的构建器
-func (sp *StringPool) GetWithCapacity(capacity int) *strings.Builder {
-	if capacity <= 0 {
-		capacity = sp.defaultCapacity
+func (sp *StrPool) GetCap(cap int) *strings.Builder {
+	if cap <= 0 {
+		cap = sp.deftCap
 	}
 	builder, ok := sp.pool.Get().(*strings.Builder)
 	if !ok {
-		// 类型断言失败，创建新的
-		builder = &strings.Builder{}
-		builder.Grow(capacity) // 预分配容量
-		builder.Reset()
-		return builder
+		panic("string pool: invalid builder type")
 	}
 
 	// 如果当前容量不足，扩容到所需容量
-	if builder.Cap() < capacity {
-		builder.Grow(capacity - builder.Cap())
+	if builder.Cap() < cap {
+		builder.Grow(cap)
 	}
 
 	// 重置构建器状态
@@ -182,80 +156,21 @@ func (sp *StringPool) GetWithCapacity(capacity int) *strings.Builder {
 // Put 归还字符串构建器到对象池
 //
 // 参数:
-//   - builder: 要归还的字符串构建器
+//   - b: 要归还的字符串构建器
 //
 // 说明:
 //   - nil构建器不会被回收
-//   - 容量不超过maxCapacity的构建器直接重置后归还
-//   - 容量超过maxCapacity的构建器会创建一个新的小容量构建器进行归还（智能缩容）
-func (sp *StringPool) Put(builder *strings.Builder) {
-	// 不回收nil构建器
-	if builder == nil {
-		return
+//   - 容量不超过maxCap的构建器直接重置后归还
+//   - 容量超过maxCap的构建器会创建一个新的小容量构建器进行归还（智能缩容）
+func (sp *StrPool) Put(b *strings.Builder) {
+	if b == nil || b.Cap() > sp.maxCap {
+		return // 为nil或容量过大不处理, 交给gc回收
 	}
-
-	// 如果容量不超过最大回收容量，直接重置后归还
-	if builder.Cap() <= sp.maxCapacity {
-		builder.Reset()
-		sp.pool.Put(builder)
-		return
-	}
-
-	// 对于容量超过最大回收容量的构建器，创建一个新的小容量构建器进行归还
-	// 这样可以避免大容量构建器占用过多内存，同时保持对象池的复用性
-	newBuilder := &strings.Builder{}
-	newBuilder.Grow(sp.maxCapacity) // 预分配容量为maxCapacity
-	newBuilder.Reset()
-	sp.pool.Put(newBuilder)
+	b.Reset()
+	sp.pool.Put(b)
 }
 
-// Warm 预热对象池
-//
-// 参数:
-//   - count: 预分配的字符串构建器数量
-//   - capacity: 每个字符串构建器的容量
-//
-// 说明:
-//   - 在应用启动时调用，预分配指定数量的字符串构建器
-//   - 减少冷启动时的内存分配延迟
-//   - 提升初期性能表现
-func (sp *StringPool) Warm(count int, capacity int) {
-	if count <= 0 || capacity <= 0 {
-		return
-	}
-
-	// 预分配指定数量的字符串构建器
-	builders := make([]*strings.Builder, count)
-	for i := 0; i < count; i++ {
-		builder := &strings.Builder{}
-		builder.Grow(capacity)
-		builders[i] = builder
-	}
-
-	// 立即归还到对象池进行预热
-	for _, builder := range builders {
-		sp.Put(builder)
-	}
-}
-
-// Drain 清空对象池中的所有字符串构建器
-//
-// 说明:
-//   - 清空当前对象池中的所有字符串构建器
-//   - 重新创建sync.Pool，释放可能占用的大量内存
-//   - 适用于内存紧张或需要重置对象池状态的场景
-func (sp *StringPool) Drain() {
-	// 创建新的sync.Pool替换旧的
-	sp.pool = sync.Pool{
-		New: func() any {
-			builder := &strings.Builder{}
-			builder.Grow(sp.defaultCapacity) // 预分配容量
-			return builder
-		},
-	}
-}
-
-// WithString 使用默认容量的字符串构建器执行函数，自动管理获取和归还
+// With 使用默认容量的字符串构建器执行函数，自动管理获取和归还
 //
 // 参数:
 //   - fn: 使用字符串构建器的函数
@@ -269,18 +184,17 @@ func (sp *StringPool) Drain() {
 //   - 获取构建的字符串结果
 //   - 自动归还字符串构建器到对象池
 //   - 即使函数发生panic也会正确归还资源
-func (sp *StringPool) WithString(fn func(*strings.Builder)) string {
-	builder := sp.Get()
-	defer sp.Put(builder)
-
-	fn(builder)
-	return builder.String()
+func (sp *StrPool) With(fn func(*strings.Builder)) string {
+	b := sp.Get()
+	defer sp.Put(b)
+	fn(b)
+	return b.String()
 }
 
-// WithStringCapacity 使用指定容量的字符串构建器执行函数，自动管理获取和归还
+// WithCap 使用指定容量的字符串构建器执行函数，自动管理获取和归还
 //
 // 参数:
-//   - capacity: 字符串构建器初始容量
+//   - cap: 字符串构建器初始容量
 //   - fn: 使用字符串构建器的函数
 //
 // 返回值:
@@ -292,10 +206,9 @@ func (sp *StringPool) WithString(fn func(*strings.Builder)) string {
 //   - 获取构建的字符串结果
 //   - 自动归还字符串构建器到对象池
 //   - 即使函数发生panic也会正确归还资源
-func (sp *StringPool) WithStringCapacity(capacity int, fn func(*strings.Builder)) string {
-	builder := sp.GetWithCapacity(capacity)
-	defer sp.Put(builder)
-
-	fn(builder)
-	return builder.String()
+func (sp *StrPool) WithCap(cap int, fn func(*strings.Builder)) string {
+	b := sp.GetCap(cap)
+	defer sp.Put(b)
+	fn(b)
+	return b.String()
 }

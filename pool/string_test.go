@@ -7,7 +7,7 @@ import (
 )
 
 func TestStringPool_Get(t *testing.T) {
-	sb := GetString()
+	sb := GetStr()
 	if sb == nil {
 		t.Fatal("GetStringBuilder() returned nil")
 	}
@@ -17,40 +17,40 @@ func TestStringPool_Get(t *testing.T) {
 		t.Errorf("Expected empty builder, got length %d", sb.Len())
 	}
 
-	PutString(sb)
+	PutStr(sb)
 }
 
 func TestStringPool_Put(t *testing.T) {
-	sb := GetString()
+	sb := GetStr()
 	sb.WriteString("test data")
 
 	if sb.Len() == 0 {
 		t.Fatal("Builder should contain data before put")
 	}
 
-	PutString(sb)
+	PutStr(sb)
 
 	// 再次获取应该是空的
-	sb2 := GetString()
+	sb2 := GetStr()
 	if sb2.Len() != 0 {
 		t.Errorf("Expected empty builder after put, got length %d", sb2.Len())
 	}
 
-	PutString(sb2)
+	PutStr(sb2)
 }
 
 func TestStringPool_Reuse(t *testing.T) {
-	sb1 := GetString()
+	sb1 := GetStr()
 	sb1.WriteString("test")
-	PutString(sb1)
+	PutStr(sb1)
 
-	sb2 := GetString()
+	sb2 := GetStr()
 	// 在单线程环境下可能复用同一个对象
 	if sb1 == sb2 {
 		t.Log("Reused the same StringBuilder object")
 	}
 
-	PutString(sb2)
+	PutStr(sb2)
 }
 
 func TestStringPool_Concurrent(t *testing.T) {
@@ -65,9 +65,9 @@ func TestStringPool_Concurrent(t *testing.T) {
 			defer wg.Done()
 
 			for j := 0; j < numOperations; j++ {
-				sb := GetString()
+				sb := GetStr()
 				if sb == nil {
-					t.Errorf("GetString() returned nil in goroutine %d", id)
+					t.Errorf("GetStr() returned nil in goroutine %d", id)
 					return
 				}
 
@@ -90,7 +90,7 @@ func TestStringPool_Concurrent(t *testing.T) {
 					return
 				}
 
-				PutString(sb)
+				PutStr(sb)
 			}
 		}(i)
 	}
@@ -99,7 +99,7 @@ func TestStringPool_Concurrent(t *testing.T) {
 }
 
 func TestStringPool_StringBuilderMethods(t *testing.T) {
-	sb := GetString()
+	sb := GetStr()
 
 	// 测试各种写入方法
 	sb.WriteString("Hello")
@@ -123,11 +123,11 @@ func TestStringPool_StringBuilderMethods(t *testing.T) {
 		t.Errorf("Capacity %d should be >= length %d", sb.Cap(), sb.Len())
 	}
 
-	PutString(sb)
+	PutStr(sb)
 }
 
 func TestStringPool_LargeString(t *testing.T) {
-	sb := GetString()
+	sb := GetStr()
 
 	// 构建大字符串
 	const iterations = 10000
@@ -141,19 +141,19 @@ func TestStringPool_LargeString(t *testing.T) {
 		t.Errorf("Expected length %d, got %d", expectedLen, len(result))
 	}
 
-	PutString(sb)
+	PutStr(sb)
 
 	// 验证重置后是空的
-	newSb := GetString()
+	newSb := GetStr()
 	if newSb.Len() != 0 {
 		t.Errorf("Expected empty builder after putting large string, got length %d", newSb.Len())
 	}
 
-	PutString(newSb)
+	PutStr(newSb)
 }
 
 func TestStringPool_Reset(t *testing.T) {
-	sb := GetString()
+	sb := GetStr()
 	sb.WriteString("some data")
 	sb.WriteByte(0x00)
 	sb.WriteRune('测')
@@ -162,10 +162,10 @@ func TestStringPool_Reset(t *testing.T) {
 		t.Fatal("Builder should contain data before reset")
 	}
 
-	PutString(sb)
+	PutStr(sb)
 
 	// 获取新的builder应该是空的
-	newSb := GetString()
+	newSb := GetStr()
 	if newSb.Len() != 0 {
 		t.Errorf("Expected empty builder after reset, got length %d", newSb.Len())
 	}
@@ -174,20 +174,20 @@ func TestStringPool_Reset(t *testing.T) {
 		t.Errorf("Expected empty string after reset, got %q", newSb.String())
 	}
 
-	PutString(newSb)
+	PutStr(newSb)
 }
 
 func TestStringPool_EdgeCases(t *testing.T) {
 	// 测试空字符串
-	sb := GetString()
+	sb := GetStr()
 	sb.WriteString("")
 	if sb.Len() != 0 {
 		t.Error("Writing empty string should not change length")
 	}
-	PutString(sb)
+	PutStr(sb)
 
 	// 测试Unicode字符
-	sb2 := GetString()
+	sb2 := GetStr()
 	sb2.WriteString("Hello")
 	sb2.WriteRune('🌍')
 	sb2.WriteString("世界")
@@ -197,11 +197,11 @@ func TestStringPool_EdgeCases(t *testing.T) {
 		t.Error("Should handle Unicode characters correctly")
 	}
 
-	PutString(sb2)
+	PutStr(sb2)
 }
 
 func TestStringPool_CapacityGrowth(t *testing.T) {
-	sb := GetString()
+	sb := GetStr()
 	initialCap := sb.Cap()
 
 	// 强制扩容
@@ -216,27 +216,27 @@ func TestStringPool_CapacityGrowth(t *testing.T) {
 		t.Errorf("Expected length 1000, got %d", sb.Len())
 	}
 
-	PutString(sb)
+	PutStr(sb)
 }
 
 func BenchmarkStringPool_GetPut(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		sb := GetString()
+		sb := GetStr()
 		sb.WriteString("benchmark test data")
 		_ = sb.String()
-		PutString(sb)
+		PutStr(sb)
 	}
 }
 
 func BenchmarkStringPool_vs_New(b *testing.B) {
 	b.Run("Pool", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			sb := GetString()
+			sb := GetStr()
 			sb.WriteString("benchmark")
 			_ = sb.String()
-			PutString(sb)
+			PutStr(sb)
 		}
 	})
 
@@ -254,13 +254,13 @@ func BenchmarkStringPool_StringBuilding(b *testing.B) {
 
 	b.Run("Pool", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			sb := GetString()
+			sb := GetStr()
 			for j := 0; j < numStrings; j++ {
 				sb.WriteString("test")
 				sb.WriteString(string(rune('0' + j%10)))
 			}
 			_ = sb.String()
-			PutString(sb)
+			PutStr(sb)
 		}
 	})
 
