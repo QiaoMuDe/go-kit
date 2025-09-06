@@ -7,7 +7,7 @@ import (
 )
 
 func TestBufferPool_Get(t *testing.T) {
-	buf := GetBuffer(1024)
+	buf := GetBuffer()
 	if buf == nil {
 		t.Fatal("GetBuffer() returned nil")
 	}
@@ -21,14 +21,14 @@ func TestBufferPool_Get(t *testing.T) {
 }
 
 func TestBufferPool_Put(t *testing.T) {
-	buf := GetBuffer(1024)
+	buf := GetBuffer()
 	buf.WriteString("test data")
 
 	// Put应该重置buffer
 	PutBuffer(buf)
 
 	// 再次获取应该是空的
-	buf2 := GetBuffer(1024)
+	buf2 := GetBuffer()
 	if buf2.Len() != 0 {
 		t.Errorf("Expected empty buffer after put, got length %d", buf2.Len())
 	}
@@ -38,11 +38,11 @@ func TestBufferPool_Put(t *testing.T) {
 
 func TestBufferPool_Reuse(t *testing.T) {
 	// 测试对象池的复用机制
-	buf1 := GetBuffer(1024)
+	buf1 := GetBuffer()
 	buf1.WriteString("test")
 	PutBuffer(buf1)
 
-	buf2 := GetBuffer(1024)
+	buf2 := GetBuffer()
 	// 应该复用同一个对象（在单线程情况下）
 	if buf1 != buf2 {
 		t.Log("Buffer objects are different (this is acceptable in concurrent scenarios)")
@@ -63,7 +63,7 @@ func TestBufferPool_Concurrent(t *testing.T) {
 			defer wg.Done()
 
 			for j := 0; j < numOperations; j++ {
-				buf := GetBuffer(1024)
+				buf := GetBuffer()
 				if buf == nil {
 					t.Errorf("GetBuffer() returned nil in goroutine %d", id)
 					return
@@ -88,7 +88,7 @@ func TestBufferPool_Concurrent(t *testing.T) {
 }
 
 func TestBufferPool_Reset(t *testing.T) {
-	buf := GetBuffer(1024)
+	buf := GetBuffer()
 	buf.WriteString("some data")
 	buf.WriteByte(0x00)
 
@@ -99,7 +99,7 @@ func TestBufferPool_Reset(t *testing.T) {
 	PutBuffer(buf)
 
 	// 获取新的buffer应该是空的
-	newBuf := GetBuffer(1024)
+	newBuf := GetBuffer()
 	if newBuf.Len() != 0 {
 		t.Errorf("Expected empty buffer after reset, got length %d", newBuf.Len())
 	}
@@ -108,7 +108,7 @@ func TestBufferPool_Reset(t *testing.T) {
 }
 
 func TestBufferPool_LargeData(t *testing.T) {
-	buf := GetBuffer(1024 * 1024)
+	buf := GetBuffer()
 
 	// 写入大量数据
 	largeData := make([]byte, 1024*1024) // 1MB
@@ -125,7 +125,7 @@ func TestBufferPool_LargeData(t *testing.T) {
 	PutBuffer(buf)
 
 	// 验证重置后是空的
-	newBuf := GetBuffer(1024)
+	newBuf := GetBuffer()
 	if newBuf.Len() != 0 {
 		t.Errorf("Expected empty buffer after putting large data, got length %d", newBuf.Len())
 	}
@@ -137,7 +137,7 @@ func BenchmarkBufferPool_GetPut(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		buf := GetBuffer(1024)
+		buf := GetBuffer()
 		buf.WriteString("benchmark test data")
 		PutBuffer(buf)
 	}
@@ -146,7 +146,7 @@ func BenchmarkBufferPool_GetPut(b *testing.B) {
 func BenchmarkBufferPool_vs_New(b *testing.B) {
 	b.Run("Pool", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			buf := GetBuffer(1024)
+			buf := GetBuffer()
 			buf.WriteString("benchmark")
 			PutBuffer(buf)
 		}

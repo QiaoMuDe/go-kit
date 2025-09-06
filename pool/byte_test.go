@@ -6,7 +6,7 @@ import (
 )
 
 func TestBytePool_Get(t *testing.T) {
-	data := GetByte(1024)
+	data := GetByte()
 	if data == nil {
 		t.Fatal("GetBytes() returned nil")
 	}
@@ -20,7 +20,7 @@ func TestBytePool_Get(t *testing.T) {
 }
 
 func TestBytePool_Put(t *testing.T) {
-	data := GetByte(1024)
+	data := GetByte()
 	// 修改数据内容
 	for i := range data {
 		data[i] = byte(i % 256)
@@ -33,7 +33,7 @@ func TestBytePool_Put(t *testing.T) {
 	PutByte(data)
 
 	// 再次获取应该是指定长度的切片
-	data2 := GetByte(512)
+	data2 := GetByteWithSize(512)
 	if len(data2) != 512 {
 		t.Errorf("Expected slice length 512, got length %d", len(data2))
 	}
@@ -43,11 +43,11 @@ func TestBytePool_Put(t *testing.T) {
 
 func TestBytePool_Reuse(t *testing.T) {
 	// 测试对象池的复用机制
-	data1 := GetByte(1024)
+	data1 := GetByte()
 	data1 = append(data1, 'a', 'b', 'c')
 	PutByte(data1)
 
-	data2 := GetByte(1024)
+	data2 := GetByte()
 	// 验证容量可能被保留（取决于实现）
 	if cap(data2) == 0 {
 		t.Log("New slice has zero capacity")
@@ -68,7 +68,7 @@ func TestBytePool_Concurrent(t *testing.T) {
 			defer wg.Done()
 
 			for j := 0; j < numOperations; j++ {
-				data := GetByte(1024)
+				data := GetByte()
 				if data == nil {
 					t.Errorf("GetByte() returned nil in goroutine %d", id)
 					return
@@ -98,7 +98,7 @@ func TestBytePool_Concurrent(t *testing.T) {
 
 func TestBytePool_LargeSlice(t *testing.T) {
 	largeSize := 1024 * 1024 // 1MB
-	data := GetByte(largeSize)
+	data := GetByteWithSize(largeSize)
 
 	// 验证获取的切片大小
 	if len(data) != largeSize {
@@ -113,7 +113,7 @@ func TestBytePool_LargeSlice(t *testing.T) {
 	PutByte(data)
 
 	// 验证获取新的切片
-	newData := GetByte(1024)
+	newData := GetByte()
 	if len(newData) != 1024 {
 		t.Errorf("Expected slice length 1024, got length %d", len(newData))
 	}
@@ -123,20 +123,20 @@ func TestBytePool_LargeSlice(t *testing.T) {
 
 func TestBytePool_EdgeCases(t *testing.T) {
 	// 测试空切片
-	data := GetByte(1024)
+	data := GetByte()
 	PutByte(data) // 应该不会panic
 
 	// 测试nil切片
 	PutByte(nil) // 应该不会panic
 
 	// 测试多次put同一个切片
-	data2 := GetByte(1024)
+	data2 := GetByte()
 	PutByte(data2)
 	PutByte(data2) // 应该不会panic，但可能导致问题
 }
 
 func TestBytePool_CapacityGrowth(t *testing.T) {
-	data := GetByte(1024)
+	data := GetByte()
 	initialCap := cap(data)
 
 	// 强制扩容
@@ -155,7 +155,7 @@ func BenchmarkBytePool_GetPut(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		data := GetByte(1024)
+		data := GetByte()
 		data = append(data, []byte("benchmark test data")...)
 		PutByte(data)
 	}
@@ -164,7 +164,7 @@ func BenchmarkBytePool_GetPut(b *testing.B) {
 func BenchmarkBytePool_vs_Make(b *testing.B) {
 	b.Run("Pool", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			data := GetByte(1024)
+			data := GetByte()
 			data = append(data, []byte("benchmark")...)
 			PutByte(data)
 		}
@@ -184,7 +184,7 @@ func BenchmarkBytePool_LargeAllocation(b *testing.B) {
 
 	b.Run("Pool", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			data := GetByte(size)
+			data := GetByteWithSize(size)
 			for j := 0; j < size; j++ {
 				data = append(data, byte(j%256))
 			}

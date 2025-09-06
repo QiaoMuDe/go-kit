@@ -92,7 +92,7 @@ func copyFileInternal(src, dst string, overwrite bool) error {
 
 	// 根据文件大小计算最佳缓冲区
 	bufSize := pool.CalculateBufferSize(fi.Size())
-	buf := pool.GetByte(bufSize)
+	buf := pool.GetByteWithSize(bufSize)
 	defer pool.PutByte(buf)
 
 	// 使用缓冲区进行数据拷贝

@@ -8,7 +8,7 @@ import (
 
 func TestWithString(t *testing.T) {
 	t.Run("Basic usage", func(t *testing.T) {
-		result := WithString(64, func(buf *strings.Builder) {
+		result := WithString(func(buf *strings.Builder) {
 			buf.WriteString("Hello")
 			buf.WriteByte(' ')
 			buf.WriteString("World")
@@ -21,7 +21,7 @@ func TestWithString(t *testing.T) {
 	})
 
 	t.Run("Empty function", func(t *testing.T) {
-		result := WithString(10, func(buf *strings.Builder) {
+		result := WithString(func(buf *strings.Builder) {
 			// 不写入任何内容
 		})
 
@@ -31,7 +31,7 @@ func TestWithString(t *testing.T) {
 	})
 
 	t.Run("Large content", func(t *testing.T) {
-		result := WithString(1024, func(buf *strings.Builder) {
+		result := WithString(func(buf *strings.Builder) {
 			for i := 0; i < 100; i++ {
 				buf.WriteString("test")
 			}
@@ -46,7 +46,7 @@ func TestWithString(t *testing.T) {
 
 func TestWithBuffer(t *testing.T) {
 	t.Run("Basic usage", func(t *testing.T) {
-		result := WithBuffer(64, func(buf *bytes.Buffer) {
+		result := WithBuffer(func(buf *bytes.Buffer) {
 			buf.WriteString("Hello")
 			buf.WriteByte(' ')
 			buf.WriteString("World")
@@ -59,7 +59,7 @@ func TestWithBuffer(t *testing.T) {
 	})
 
 	t.Run("Binary data", func(t *testing.T) {
-		result := WithBuffer(32, func(buf *bytes.Buffer) {
+		result := WithBuffer(func(buf *bytes.Buffer) {
 			buf.Write([]byte{0x01, 0x02, 0x03, 0x04})
 		})
 
@@ -70,7 +70,7 @@ func TestWithBuffer(t *testing.T) {
 	})
 
 	t.Run("Empty buffer", func(t *testing.T) {
-		result := WithBuffer(10, func(buf *bytes.Buffer) {
+		result := WithBuffer(func(buf *bytes.Buffer) {
 			// 不写入任何内容
 		})
 
@@ -83,7 +83,7 @@ func TestWithBuffer(t *testing.T) {
 // 基准测试对比传统方式和新方式
 func BenchmarkTraditionalString(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		buf := GetString(64)
+		buf := GetString()
 		buf.WriteString("Hello")
 		buf.WriteByte(' ')
 		buf.WriteString("World")
@@ -95,7 +95,7 @@ func BenchmarkTraditionalString(b *testing.B) {
 
 func BenchmarkWithString(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		result := WithString(64, func(buf *strings.Builder) {
+		result := WithString(func(buf *strings.Builder) {
 			buf.WriteString("Hello")
 			buf.WriteByte(' ')
 			buf.WriteString("World")
@@ -106,7 +106,7 @@ func BenchmarkWithString(b *testing.B) {
 
 func BenchmarkTraditionalBuffer(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		buf := GetBuffer(64)
+		buf := GetBuffer()
 		buf.WriteString("Hello")
 		buf.WriteByte(' ')
 		buf.WriteString("World")
@@ -119,7 +119,7 @@ func BenchmarkTraditionalBuffer(b *testing.B) {
 
 func BenchmarkWithBuffer(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		result := WithBuffer(64, func(buf *bytes.Buffer) {
+		result := WithBuffer(func(buf *bytes.Buffer) {
 			buf.WriteString("Hello")
 			buf.WriteByte(' ')
 			buf.WriteString("World")
@@ -138,7 +138,7 @@ func TestWithStringConcurrent(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func(id int) {
 			for j := 0; j < numOperations; j++ {
-				result := WithString(32, func(buf *strings.Builder) {
+				result := WithString(func(buf *strings.Builder) {
 					buf.WriteString("goroutine-")
 					buf.WriteString(string(rune('0' + id)))
 					buf.WriteString("-op-")

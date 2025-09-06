@@ -31,17 +31,25 @@ package pool
 import "sync"
 
 // 全局默认对象池实例
-var defaultPool = NewBytePool(32*1024, 1024*1024)
+var defaultPool = NewBytePool(256, 32*1024)
 
-// GetByte 从默认字节池获取指定大小的缓冲区
+// GetByte 从默认字节池获取默认大小的缓冲区
+//
+// 返回值:
+//   - []byte: 长度为默认大小, 容量至少为默认大小的缓冲区
+func GetByte() []byte {
+	return defaultPool.Get()
+}
+
+// GetByteWithSize 从默认字节池获取指定大小的缓冲区
 //
 // 参数:
 //   - size: 缓冲区容量大小
 //
 // 返回值:
 //   - []byte: 长度为size, 容量至少为size的缓冲区
-func GetByte(size int) []byte {
-	return defaultPool.Get(size)
+func GetByteWithSize(size int) []byte {
+	return defaultPool.GetWithSize(size)
 }
 
 // PutByte 将缓冲区归还到默认字节池
@@ -97,7 +105,25 @@ func DrainByte() {
 	defaultPool.Drain()
 }
 
-// WithByte 使用字节切片执行函数, 自动管理获取和归还
+// WithByte 使用默认大小的字节切片执行函数, 自动管理获取和归还
+//
+// 参数:
+//   - fn: 使用字节切片的函数
+//
+// 返回值:
+//   - []byte: 函数执行后字节切片的数据副本
+//
+// 使用示例:
+//
+//	data := pool.WithByte(func(buf []byte) {
+//	    copy(buf, []byte("Hello World"))
+//	    // 可以直接操作buf进行读写
+//	})
+func WithByte(fn func([]byte)) []byte {
+	return defaultPool.WithByte(fn)
+}
+
+// WithByteSize 使用指定大小的字节切片执行函数, 自动管理获取和归还
 //
 // 参数:
 //   - size: 字节切片初始大小
@@ -108,12 +134,12 @@ func DrainByte() {
 //
 // 使用示例:
 //
-//	data := pool.WithByte(1024, func(buf []byte) {
+//	data := pool.WithByteSize(1024, func(buf []byte) {
 //	    copy(buf, []byte("Hello World"))
 //	    // 可以直接操作buf进行读写
 //	})
-func WithByte(size int, fn func([]byte)) []byte {
-	return defaultPool.WithByte(size, fn)
+func WithByteSize(size int, fn func([]byte)) []byte {
+	return defaultPool.WithByteSize(size, fn)
 }
 
 // WithEmptyByte 使用空字节切片执行函数, 自动管理获取和归还
@@ -154,10 +180,10 @@ type BytePool struct {
 //   - *BytePool: 字节切片对象池实例
 func NewBytePool(defaultSize, maxSize int) *BytePool {
 	if defaultSize <= 0 {
-		defaultSize = 32 * 1024 // 默认32KB
+		defaultSize = 256 // 默认256字节
 	}
 	if maxSize <= 0 {
-		maxSize = 1024 * 1024 // 默认1MB
+		maxSize = 32 * 1024 // 默认32KB
 	}
 
 	return &BytePool{
@@ -165,17 +191,29 @@ func NewBytePool(defaultSize, maxSize int) *BytePool {
 		defaultSize: defaultSize,
 		pool: sync.Pool{
 			New: func() any {
-				buf := make([]byte, 0, defaultSize) // 长度0, 容量defaultSize
-				return &buf                         // 返回指针避免装箱
+				buf := make([]byte, 0, defaultSize)
+				return &buf // 返回指针避免装箱
 			},
 		},
 	}
 }
 
-// Get 获取指定容量的缓冲区
+// Get 获取默认大小的缓冲区
+//
+// 返回:
+//   - []byte: 长度为默认大小, 容量至少为默认大小的缓冲区切片
+//
+// 说明:
+//   - 返回的缓冲区长度等于默认大小, 可以直接使用
+//   - 底层容量可能大于默认大小, 来自对象池的复用缓冲区
+func (bp *BytePool) Get() []byte {
+	return bp.GetWithSize(bp.defaultSize)
+}
+
+// GetWithSize 获取指定大小的缓冲区
 //
 // 参数:
-//   - size: 需要的缓冲区容量大小
+//   - size: 需要的缓冲区大小
 //
 // 返回:
 //   - []byte: 长度为size, 容量至少为size的缓冲区切片
@@ -183,23 +221,22 @@ func NewBytePool(defaultSize, maxSize int) *BytePool {
 // 说明:
 //   - 返回的缓冲区长度等于请求的size, 可以直接使用
 //   - 底层容量可能大于size, 来自对象池的复用缓冲区
-func (bp *BytePool) Get(size int) []byte {
+func (bp *BytePool) GetWithSize(size int) []byte {
 	bufPtr, ok := bp.pool.Get().(*[]byte)
 	if !ok {
 		// 类型断言失败, 创建新的
-		buf := make([]byte, 0, size)
-		return buf[:size]
+		return make([]byte, size)
 	}
 
-	// 获取缓冲区
 	buffer := *bufPtr
 
-	// 缓冲区容量不足, 创建新的
+	// 缓冲区容量不足, 扩容
 	if cap(buffer) < size {
-		buf := make([]byte, 0, size)
-		return buf[:size]
+		// 创建新的更大容量的缓冲区
+		return make([]byte, size)
 	}
 
+	// 清空缓冲区内容并设置长度
 	return buffer[:size]
 }
 
@@ -216,7 +253,6 @@ func (bp *BytePool) Put(buffer []byte) {
 	if cap(buffer) <= bp.maxSize {
 		// 清空缓冲区内容
 		buffer = buffer[:0]
-
 		bp.pool.Put(&buffer) // 传入指针避免装箱分配
 		return
 	}
@@ -225,7 +261,6 @@ func (bp *BytePool) Put(buffer []byte) {
 
 	// 创建小容量缓冲区, 避免池变空
 	newBuffer := make([]byte, 0, bp.maxSize)
-
 	bp.pool.Put(&newBuffer) // 传入指针避免装箱分配
 }
 
@@ -247,7 +282,6 @@ func (bp *BytePool) GetEmpty(minCap int) []byte {
 		return make([]byte, 0, minCap)
 	}
 
-	// 获取缓冲区
 	buffer := *bufPtr
 
 	// 缓冲区容量不足, 创建新的
@@ -268,7 +302,7 @@ func (bp *BytePool) GetEmpty(minCap int) []byte {
 //   - 如果新的maxSize小于当前值, 建议调用Drain()清空对象池
 func (bp *BytePool) SetMaxSize(maxSize int) {
 	if maxSize <= 0 {
-		maxSize = 1024 * 1024 // 默认1MB
+		maxSize = 32 * 1024 // 默认32KB
 	}
 	bp.maxSize = maxSize
 }
@@ -318,13 +352,38 @@ func (bp *BytePool) Drain() {
 	// 创建新的sync.Pool替换旧的
 	bp.pool = sync.Pool{
 		New: func() any {
-			buf := make([]byte, 0, bp.defaultSize) // 长度0, 容量defaultSize
-			return &buf                            // 返回指针避免装箱
+			buf := make([]byte, 0, bp.defaultSize)
+			return &buf // 返回指针避免装箱
 		},
 	}
 }
 
-// WithByte 使用字节切片执行函数, 自动管理获取和归还
+// WithByte 使用默认大小的字节切片执行函数, 自动管理获取和归还
+//
+// 参数:
+//   - fn: 使用字节切片的函数
+//
+// 返回值:
+//   - []byte: 函数执行后字节切片的数据副本
+//
+// 说明:
+//   - 自动从对象池获取默认大小的字节切片
+//   - 执行用户提供的函数
+//   - 获取字节切片数据的副本
+//   - 自动归还字节切片到对象池
+//   - 即使函数发生panic也会正确归还资源
+func (bp *BytePool) WithByte(fn func([]byte)) []byte {
+	buffer := bp.Get()
+	defer bp.Put(buffer)
+
+	fn(buffer)
+	// 返回数据的副本, 避免在归还后访问
+	result := make([]byte, len(buffer))
+	copy(result, buffer)
+	return result
+}
+
+// WithByteSize 使用指定大小的字节切片执行函数, 自动管理获取和归还
 //
 // 参数:
 //   - size: 字节切片初始大小
@@ -334,13 +393,13 @@ func (bp *BytePool) Drain() {
 //   - []byte: 函数执行后字节切片的数据副本
 //
 // 说明:
-//   - 自动从对象池获取字节切片
+//   - 自动从对象池获取指定大小的字节切片
 //   - 执行用户提供的函数
 //   - 获取字节切片数据的副本
 //   - 自动归还字节切片到对象池
 //   - 即使函数发生panic也会正确归还资源
-func (bp *BytePool) WithByte(size int, fn func([]byte)) []byte {
-	buffer := bp.Get(size)
+func (bp *BytePool) WithByteSize(size int, fn func([]byte)) []byte {
+	buffer := bp.GetWithSize(size)
 	defer bp.Put(buffer)
 
 	fn(buffer)

@@ -7,7 +7,7 @@ import (
 
 func TestWithByte(t *testing.T) {
 	t.Run("Basic usage", func(t *testing.T) {
-		data := WithByte(64, func(buf []byte) {
+		data := WithByte(func(buf []byte) {
 			copy(buf, []byte("Hello World"))
 		})
 
@@ -20,7 +20,7 @@ func TestWithByte(t *testing.T) {
 
 	t.Run("Binary data", func(t *testing.T) {
 		testData := []byte{0x01, 0x02, 0x03, 0x04, 0xFF}
-		data := WithByte(32, func(buf []byte) {
+		data := WithByte(func(buf []byte) {
 			copy(buf, testData)
 		})
 
@@ -31,7 +31,7 @@ func TestWithByte(t *testing.T) {
 
 	t.Run("Large buffer", func(t *testing.T) {
 		size := 1024
-		data := WithByte(size, func(buf []byte) {
+		data := WithByte(func(buf []byte) {
 			for i := 0; i < size; i++ {
 				buf[i] = byte(i % 256)
 			}
@@ -114,7 +114,7 @@ func TestBytePoolWithMethods(t *testing.T) {
 	pool := NewBytePool(64, 1024)
 
 	t.Run("WithByte method", func(t *testing.T) {
-		data := pool.WithByte(32, func(buf []byte) {
+		data := pool.WithByte(func(buf []byte) {
 			copy(buf, []byte("test"))
 		})
 
@@ -142,7 +142,7 @@ func BenchmarkTraditionalByte(b *testing.B) {
 	testData := []byte("Hello World Test Data")
 
 	for i := 0; i < b.N; i++ {
-		buf := GetByte(64)
+		buf := GetByte()
 		copy(buf, testData)
 		result := make([]byte, len(testData))
 		copy(result, buf[:len(testData)])
@@ -155,7 +155,7 @@ func BenchmarkWithByte(b *testing.B) {
 	testData := []byte("Hello World Test Data")
 
 	for i := 0; i < b.N; i++ {
-		result := WithByte(64, func(buf []byte) {
+		result := WithByte(func(buf []byte) {
 			copy(buf, testData)
 		})
 		_ = result
@@ -197,7 +197,7 @@ func TestWithByteConcurrent(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func(id int) {
 			for j := 0; j < numOperations; j++ {
-				data := WithByte(32, func(buf []byte) {
+				data := WithByte(func(buf []byte) {
 					testData := []byte("goroutine-" + string(rune('0'+id)))
 					copy(buf, testData)
 				})
