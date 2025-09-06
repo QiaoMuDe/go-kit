@@ -183,7 +183,7 @@ func GenWithPrefix(prefix string, n int) string {
 //   - 36位长度的UUID格式字符串
 func UUID() string {
 	// 从字节池获取32字节的缓冲区用于加密安全随机数据
-	randomBytes := pool.GetByteWithSize(32)
+	randomBytes := pool.GetByteWithCapacity(32)
 	defer pool.PutByte(randomBytes)
 
 	if _, err := rand.Read(randomBytes); err != nil {

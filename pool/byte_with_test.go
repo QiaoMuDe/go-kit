@@ -31,7 +31,7 @@ func TestWithByte(t *testing.T) {
 
 	t.Run("Large buffer", func(t *testing.T) {
 		size := 1024
-		data := WithByte(func(buf []byte) {
+		data := WithByteCapacity(size, func(buf []byte) {
 			for i := 0; i < size; i++ {
 				buf[i] = byte(i % 256)
 			}

@@ -38,25 +38,8 @@ func GetStringWithCapacity(capacity int) *strings.Builder {
 //
 // 说明:
 //   - 该函数将字符串构建器归还到对象池，以便后续复用。
-//   - 只有容量不超过64KB的构建器才会被归还，以避免对象池占用过多内存。
 func PutString(builder *strings.Builder) {
 	defaultStringPool.Put(builder)
-}
-
-// SetStringMaxSize 动态调整默认字符串池的最大回收大小
-//
-// 参数:
-//   - maxSize: 新的最大回收大小
-func SetStringMaxSize(maxSize int) {
-	defaultStringPool.SetMaxSize(maxSize)
-}
-
-// GetStringMaxSize 获取默认字符串池的当前最大回收大小
-//
-// 返回值:
-//   - int: 当前最大回收大小
-func GetStringMaxSize() int {
-	return defaultStringPool.GetMaxSize()
 }
 
 // WarmString 预热默认字符串池
@@ -171,7 +154,11 @@ func (sp *StringPool) Get() *strings.Builder {
 // 说明:
 //   - 返回的字符串构建器已经重置为空状态，可以直接使用
 //   - 底层容量可能大于capacity，来自对象池的复用构建器
+//   - 如果capacity <= 0, 返回默认容量的构建器
 func (sp *StringPool) GetWithCapacity(capacity int) *strings.Builder {
+	if capacity <= 0 {
+		capacity = sp.defaultSize
+	}
 	builder, ok := sp.pool.Get().(*strings.Builder)
 	if !ok {
 		// 类型断言失败，创建新的
@@ -220,29 +207,6 @@ func (sp *StringPool) Put(builder *strings.Builder) {
 	newBuilder.Grow(sp.maxSize) // 预分配容量为maxSize
 	newBuilder.Reset()
 	sp.pool.Put(newBuilder)
-}
-
-// SetMaxSize 动态调整最大回收构建器大小
-//
-// 参数:
-//   - maxSize: 新的最大回收大小
-//
-// 说明:
-//   - 运行时动态调整配置
-//   - 如果新的maxSize小于当前值，建议调用Drain()清空对象池
-func (sp *StringPool) SetMaxSize(maxSize int) {
-	if maxSize <= 0 {
-		maxSize = 32 * 1024 // 默认32KB
-	}
-	sp.maxSize = maxSize
-}
-
-// GetMaxSize 获取当前最大回收构建器大小
-//
-// 返回:
-//   - int: 当前最大回收大小
-func (sp *StringPool) GetMaxSize() int {
-	return sp.maxSize
 }
 
 // Warm 预热对象池

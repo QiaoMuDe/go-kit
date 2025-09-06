@@ -34,25 +34,8 @@ func GetBufferWithCapacity(capacity int) *bytes.Buffer {
 //
 // 说明:
 //   - 该函数将字节缓冲区归还到对象池，以便后续复用。
-//   - 只有容量不超过64KB的缓冲区才会被归还，以避免对象池占用过多内存。
 func PutBuffer(buffer *bytes.Buffer) {
 	defaultBufferPool.Put(buffer)
-}
-
-// SetBufferMaxSize 动态调整默认缓冲区池的最大回收大小
-//
-// 参数:
-//   - maxSize: 新的最大回收大小
-func SetBufferMaxSize(maxSize int) {
-	defaultBufferPool.SetMaxSize(maxSize)
-}
-
-// GetBufferMaxSize 获取默认缓冲区池的当前最大回收大小
-//
-// 返回值:
-//   - int: 当前最大回收大小
-func GetBufferMaxSize() int {
-	return defaultBufferPool.GetMaxSize()
 }
 
 // WarmBuffer 预热默认缓冲区池
@@ -167,7 +150,11 @@ func (bp *BufferPool) Get() *bytes.Buffer {
 // 说明:
 //   - 返回的字节缓冲区已经重置为空状态，可以直接使用
 //   - 底层容量可能大于capacity，来自对象池的复用缓冲区
+//   - 如果capacity <= 0, 返回默认容量的缓冲区
 func (bp *BufferPool) GetWithCapacity(capacity int) *bytes.Buffer {
+	if capacity <= 0 {
+		capacity = bp.defaultSize
+	}
 	buffer, ok := bp.pool.Get().(*bytes.Buffer)
 	if !ok {
 		// 类型断言失败，创建新的
@@ -210,29 +197,6 @@ func (bp *BufferPool) Put(buffer *bytes.Buffer) {
 	newBuffer.Grow(bp.maxSize)
 	newBuffer.Reset()
 	bp.pool.Put(newBuffer)
-}
-
-// SetMaxSize 动态调整最大回收缓冲区大小
-//
-// 参数:
-//   - maxSize: 新的最大回收大小
-//
-// 说明:
-//   - 运行时动态调整配置
-//   - 如果新的maxSize小于当前值，建议调用Drain()清空对象池
-func (bp *BufferPool) SetMaxSize(maxSize int) {
-	if maxSize <= 0 {
-		maxSize = 32 * 1024 // 默认32KB
-	}
-	bp.maxSize = maxSize
-}
-
-// GetMaxSize 获取当前最大回收缓冲区大小
-//
-// 返回:
-//   - int: 当前最大回收大小
-func (bp *BufferPool) GetMaxSize() int {
-	return bp.maxSize
 }
 
 // Warm 预热对象池

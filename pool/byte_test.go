@@ -6,7 +6,7 @@ import (
 )
 
 func TestBytePool_Get(t *testing.T) {
-	data := GetByte()
+	data := GetByteWithCapacity(1024)
 	if data == nil {
 		t.Fatal("GetBytes() returned nil")
 	}
@@ -20,7 +20,7 @@ func TestBytePool_Get(t *testing.T) {
 }
 
 func TestBytePool_Put(t *testing.T) {
-	data := GetByte()
+	data := GetByteWithCapacity(1024)
 	// 修改数据内容
 	for i := range data {
 		data[i] = byte(i % 256)
@@ -33,7 +33,7 @@ func TestBytePool_Put(t *testing.T) {
 	PutByte(data)
 
 	// 再次获取应该是指定长度的切片
-	data2 := GetByteWithSize(512)
+	data2 := GetByteWithCapacity(512)
 	if len(data2) != 512 {
 		t.Errorf("Expected slice length 512, got length %d", len(data2))
 	}
@@ -68,7 +68,7 @@ func TestBytePool_Concurrent(t *testing.T) {
 			defer wg.Done()
 
 			for j := 0; j < numOperations; j++ {
-				data := GetByte()
+				data := GetByteWithCapacity(1024)
 				if data == nil {
 					t.Errorf("GetByte() returned nil in goroutine %d", id)
 					return
@@ -98,7 +98,7 @@ func TestBytePool_Concurrent(t *testing.T) {
 
 func TestBytePool_LargeSlice(t *testing.T) {
 	largeSize := 1024 * 1024 // 1MB
-	data := GetByteWithSize(largeSize)
+	data := GetByteWithCapacity(largeSize)
 
 	// 验证获取的切片大小
 	if len(data) != largeSize {
@@ -114,8 +114,8 @@ func TestBytePool_LargeSlice(t *testing.T) {
 
 	// 验证获取新的切片
 	newData := GetByte()
-	if len(newData) != 1024 {
-		t.Errorf("Expected slice length 1024, got length %d", len(newData))
+	if len(newData) != 256 {
+		t.Errorf("Expected new slice length 256, got length %d", len(newData))
 	}
 
 	PutByte(newData)
@@ -184,7 +184,7 @@ func BenchmarkBytePool_LargeAllocation(b *testing.B) {
 
 	b.Run("Pool", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			data := GetByteWithSize(size)
+			data := GetByteWithCapacity(size)
 			for j := 0; j < size; j++ {
 				data = append(data, byte(j%256))
 			}
