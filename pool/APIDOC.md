@@ -1,38 +1,23 @@
 # Package pool
 
-```go
-import "gitee.com/MM-Q/go-kit/pool"
-```
+**Import Path:** `gitee.com/MM-Q/go-kit/pool`
 
-Package pool 提供高性能对象池管理功能，通过复用对象优化内存使用。
+Package pool 提供高性能对象池管理功能, 通过复用对象优化内存使用。
 
-该包实现了基于 sync.Pool 的多种对象池，用于减少频繁的内存分配和回收。 通过复用对象，可以显著提升应用程序的性能，特别是在高并发场景下。
+该包实现了基于 sync.Pool 的多种对象池, 用于减少频繁的内存分配和回收。 通过复用对象, 可以显著提升应用程序的性能, 特别是在高并发场景下。
 
 **主要功能：**
 - 字节切片对象池管理
-- 动态大小对象获取
+- 动态容量对象获取
 - 自动内存回收控制
-- 防止内存泄漏的大小限制
+- 防止内存泄漏的容量限制
 - 支持多种对象类型的池化
 
 **性能优化：**
 - 使用 sync.Pool 减少 GC 压力
-- 支持不同大小的对象需求
+- 支持不同容量的对象需求
 - 自动限制大对象回收
 - 预热机制提升冷启动性能
-
-**使用示例：**
-
-```go
-// 获取字节缓冲区
-buf := pool.GetByte(64 * 1024)
-
-// 使用缓冲区进行文件操作
-_, err := io.CopyBuffer(dst, src, buf)
-
-// 归还缓冲区到对象池
-pool.PutByte(buf)
-```
 
 Package pool 提供随机数生成器对象池功能，通过对象池优化随机数生成性能。
 
@@ -54,7 +39,6 @@ const (
 	TB                      // 太字节 (1024 GB)
 )
 ```
-
 字节单位定义
 
 ## Functions
@@ -68,10 +52,10 @@ func CalculateBufferSize(fileSize int64) int
 CalculateBufferSize 根据文件大小动态计算最佳缓冲区大小。 采用分层策略，平衡内存使用和I/O性能。
 
 **参数:**
-- `fileSize`: 文件大小（字节）
+- fileSize: 文件大小（字节）
 
 **返回:**
-- `int`: 计算出的最佳缓冲区大小（字节）
+- int: 计算出的最佳缓冲区大小（字节）
 
 **缓冲区分配策略:**
 - ≤ 0 或 ≤ 4KB: 使用 1KB 缓冲区，确保最小缓冲区大小
@@ -90,93 +74,69 @@ CalculateBufferSize 根据文件大小动态计算最佳缓冲区大小。 采�
 - 大文件: 增大缓冲区，提升I/O吞吐量
 - 超大文件: 限制最大缓冲区，避免过度内存消耗
 
-### func DrainBuffer
+### func GetBuf
 
 ```go
-func DrainBuffer()
+func GetBuf() *bytes.Buffer
 ```
 
-DrainBuffer 清空默认缓冲区池
+GetBuf 从默认缓冲区池获取默认容量的字节缓冲区
 
-### func DrainByte
+**返回值:**
+- *bytes.Buffer: 容量至少为默认容量的字节缓冲区
+
+### func GetBufCap
 
 ```go
-func DrainByte()
+func GetBufCap(cap int) *bytes.Buffer
 ```
 
-DrainByte 清空默认字节池
-
-### func DrainString
-
-```go
-func DrainString()
-```
-
-DrainString 清空默认字符串池
-
-### func GetBuffer
-
-```go
-func GetBuffer(capacity int) *bytes.Buffer
-```
-
-GetBuffer 从默认缓冲区池获取字节缓冲区
+GetBufCap 从默认缓冲区池获取指定容量的字节缓冲区
 
 **参数:**
-- `capacity`: 缓冲区初始容量大小
+- cap: 缓冲区初始容量
 
 **返回值:**
-- `*bytes.Buffer`: 容量至少为capacity的字节缓冲区
-
-### func GetBufferMaxSize
-
-```go
-func GetBufferMaxSize() int
-```
-
-GetBufferMaxSize 获取默认缓冲区池的当前最大回收大小
-
-**返回值:**
-- `int`: 当前最大回收大小
+- *bytes.Buffer: 容量至少为capacity的字节缓冲区
 
 ### func GetByte
 
 ```go
-func GetByte(size int) []byte
+func GetByte() []byte
 ```
 
-GetByte 从默认字节池获取指定大小的缓冲区
-
-**参数:**
-- `size`: 缓冲区容量大小
+GetByte 从默认字节池获取默认容量的缓冲区
 
 **返回值:**
-- `[]byte`: 长度为size，容量至少为size的缓冲区
+- []byte: 长度为默认容量, 容量至少为默认容量的缓冲区
 
-### func GetByteMaxSize
+### func GetByteCap
 
 ```go
-func GetByteMaxSize() int
+func GetByteCap(size int) []byte
 ```
 
-GetByteMaxSize 获取默认字节池的当前最大回收大小
-
-**返回值:**
-- `int`: 当前最大回收大小
-
-### func GetEmptyByte
-
-```go
-func GetEmptyByte(minCap int) []byte
-```
-
-GetEmptyByte 从默认字节池获取空缓冲区
+GetByteCap 从默认字节池获取指定容量的缓冲区
 
 **参数:**
-- `minCap`: 最小容量要求
+- size: 缓冲区容量
 
 **返回值:**
-- `[]byte`: 长度为0但容量至少为minCap的缓冲区切片
+- []byte: 长度为capacity, 容量至少为capacity的缓冲区
+
+### func GetByteEmpty
+
+```go
+func GetByteEmpty(size int) []byte
+```
+
+GetByteEmpty 从默认字节池获取空缓冲区
+
+**参数:**
+- size: 指定容量要求
+
+**返回值:**
+- []byte: 长度为0但容量至少为capacity的缓冲区切片
 
 ### func GetRand
 
@@ -187,7 +147,7 @@ func GetRand() *rand.Rand
 GetRand 从池中获取随机数生成器
 
 **返回值:**
-- `*rand.Rand`: 随机数生成器实例
+- *rand.Rand: 随机数生成器实例
 
 **说明:**
 - 返回的生成器已经初始化了随机种子
@@ -203,39 +163,39 @@ func GetRandWithSeed(seed int64) *rand.Rand
 GetRandWithSeed 获取指定种子的随机数生成器
 
 **参数:**
-- `seed`: 随机数种子
+- seed: 随机数种子
 
 **返回值:**
-- `*rand.Rand`: 随机数生成器实例
+- *rand.Rand: 随机数生成器实例
 
 **说明:**
 - 返回的生成器使用指定的种子初始化
 - 适用于需要可重现随机序列的场景
 
-### func GetString
+### func GetStr
 
 ```go
-func GetString(capacity int) *strings.Builder
+func GetStr() *strings.Builder
 ```
 
-GetString 从默认字符串池获取字符串构建器
+GetStr 从默认字符串池获取默认容量的字符串构建器
+
+**返回值:**
+- *strings.Builder: 容量至少为默认容量的字符串构建器
+
+### func GetStrCap
+
+```go
+func GetStrCap(cap int) *strings.Builder
+```
+
+GetStrCap 从默认字符串池获取指定容量的字符串构建器
 
 **参数:**
-- `capacity`: 字符串构建器初始容量大小
+- cap: 字符串构建器初始容量
 
 **返回值:**
-- `*strings.Builder`: 容量至少为capacity的字符串构建器
-
-### func GetStringMaxSize
-
-```go
-func GetStringMaxSize() int
-```
-
-GetStringMaxSize 获取默认字符串池的当前最大回收大小
-
-**返回值:**
-- `int`: 当前最大回收大小
+- *strings.Builder: 容量至少为capacity的字符串构建器
 
 ### func GetTimer
 
@@ -246,10 +206,10 @@ func GetTimer(duration time.Duration) *time.Timer
 GetTimer 从池中获取定时器并设置超时时间
 
 **参数:**
-- `duration`: 定时器超时时间
+- duration: 定时器超时时间
 
 **返回值:**
-- `*time.Timer`: 已设置超时时间的定时器
+- *time.Timer: 已设置超时时间的定时器
 
 **说明:**
 - 返回的定时器已经启动，会在指定时间后触发
@@ -265,7 +225,7 @@ func GetTimerEmpty() *time.Timer
 GetTimerEmpty 从池中获取未启动的定时器
 
 **返回值:**
-- `*time.Timer`: 未启动的定时器，需要手动调用Reset设置时间
+- *time.Timer: 未启动的定时器，需要手动调用Reset设置时间
 
 **说明:**
 - 适用于需要手动控制定时器启动和停止的场景
@@ -273,35 +233,33 @@ GetTimerEmpty 从池中获取未启动的定时器
 - 获取后需要调用timer.Reset(duration)启动
 - 使用完毕后应调用PutTimer归还
 
-### func PutBuffer
+### func PutBuf
 
 ```go
-func PutBuffer(buffer *bytes.Buffer)
+func PutBuf(buf *bytes.Buffer)
 ```
 
-PutBuffer 将字节缓冲区归还到默认缓冲区池
+PutBuf 将字节缓冲区归还到默认缓冲区池
 
 **参数:**
-- `buffer`: 要归还的字节缓冲区
+- buf: 要归还的字节缓冲区
 
 **说明:**
 - 该函数将字节缓冲区归还到对象池，以便后续复用。
-- 只有容量不超过64KB的缓冲区才会被归还，以避免对象池占用过多内存。
 
 ### func PutByte
 
 ```go
-func PutByte(buffer []byte)
+func PutByte(buf []byte)
 ```
 
 PutByte 将缓冲区归还到默认字节池
 
 **参数:**
-- `buffer`: 要归还的缓冲区
+- buf: 要归还的缓冲区
 
 **说明:**
-- 该函数将缓冲区归还到对象池，以便后续复用。
-- 只有容量不超过1MB的缓冲区才会被归还，以避免对象池占用过多内存。
+- 该函数将缓冲区归还到对象池, 以便后续复用。
 
 ### func PutRand
 
@@ -312,22 +270,21 @@ func PutRand(rng *rand.Rand)
 PutRand 将随机数生成器归还到池中
 
 **参数:**
-- `rng`: 要归还的随机数生成器
+- rng: 要归还的随机数生成器
 
-### func PutString
+### func PutStr
 
 ```go
-func PutString(builder *strings.Builder)
+func PutStr(buf *strings.Builder)
 ```
 
-PutString 将字符串构建器归还到默认字符串池
+PutStr 将字符串构建器归还到默认字符串池
 
 **参数:**
-- `builder`: 要归还的字符串构建器
+- buf: 要归还的字符串构建器
 
 **说明:**
 - 该函数将字符串构建器归还到对象池，以便后续复用。
-- 只有容量不超过64KB的构建器才会被归还，以避免对象池占用过多内存。
 
 ### func PutTimer
 
@@ -338,153 +295,58 @@ func PutTimer(timer *time.Timer)
 PutTimer 将定时器归还到池中
 
 **参数:**
-- `timer`: 要归还的定时器
+- timer: 要归还的定时器
 
 **说明:**
 - 该函数会自动停止定时器并清理状态
 - 归还后的定时器会被重置，可以安全复用
 
-### func SetBufferMaxSize
+### func WithBuf
 
 ```go
-func SetBufferMaxSize(maxSize int)
+func WithBuf(fn func(*bytes.Buffer)) []byte
 ```
 
-SetBufferMaxSize 动态调整默认缓冲区池的最大回收大小
+WithBuf 使用默认容量的字节缓冲区执行函数，自动管理获取和归还
 
 **参数:**
-- `maxSize`: 新的最大回收大小
-
-### func SetByteMaxSize
-
-```go
-func SetByteMaxSize(maxSize int)
-```
-
-SetByteMaxSize 动态调整默认字节池的最大回收大小
-
-**参数:**
-- `maxSize`: 新的最大回收大小
-
-### func SetStringMaxSize
-
-```go
-func SetStringMaxSize(maxSize int)
-```
-
-SetStringMaxSize 动态调整默认字符串池的最大回收大小
-
-**参数:**
-- `maxSize`: 新的最大回收大小
-
-### func WarmBuffer
-
-```go
-func WarmBuffer(count int, capacity int)
-```
-
-WarmBuffer 预热默认缓冲区池
-
-**参数:**
-- `count`: 预分配的字节缓冲区数量
-- `capacity`: 每个字节缓冲区的容量
-
-### func WarmByte
-
-```go
-func WarmByte(count int, size int)
-```
-
-WarmByte 预热默认字节池
-
-**参数:**
-- `count`: 预分配的缓冲区数量
-- `size`: 每个缓冲区的大小
-
-### func WarmString
-
-```go
-func WarmString(count int, capacity int)
-```
-
-WarmString 预热默认字符串池
-
-**参数:**
-- `count`: 预分配的字符串构建器数量
-- `capacity`: 每个字符串构建器的容量
-
-### func WithBuffer
-
-```go
-func WithBuffer(capacity int, fn func(*bytes.Buffer)) []byte
-```
-
-WithBuffer 使用字节缓冲区执行函数，自动管理获取和归还
-
-**参数:**
-- `capacity`: 字节缓冲区初始容量大小
-- `fn`: 使用字节缓冲区的函数
+- fn: 使用字节缓冲区的函数
 
 **返回值:**
-- `[]byte`: 函数执行后缓冲区的字节数据副本
+- []byte: 函数执行后缓冲区的字节数据副本
 
 **使用示例:**
 
 ```go
-data := pool.WithBuffer(1024, func(buf *bytes.Buffer) {
+data := pool.WithBuf(func(buf *bytes.Buffer) {
     buf.WriteString("Hello")
     buf.WriteByte(' ')
     buf.WriteString("World")
 })
 ```
 
-### func WithByte
+### func WithBufCap
 
 ```go
-func WithByte(size int, fn func([]byte)) []byte
+func WithBufCap(cap int, fn func(*bytes.Buffer)) []byte
 ```
 
-WithByte 使用字节切片执行函数，自动管理获取和归还
+WithBufCap 使用指定容量的字节缓冲区执行函数，自动管理获取和归还
 
 **参数:**
-- `size`: 字节切片初始大小
-- `fn`: 使用字节切片的函数
+- cap: 字节缓冲区初始容量
+- fn: 使用字节缓冲区的函数
 
 **返回值:**
-- `[]byte`: 函数执行后字节切片的数据副本
+- []byte: 函数执行后缓冲区的字节数据副本
 
 **使用示例:**
 
 ```go
-data := pool.WithByte(1024, func(buf []byte) {
-    copy(buf, []byte("Hello World"))
-    // 可以直接操作buf进行读写
-})
-```
-
-### func WithEmptyByte
-
-```go
-func WithEmptyByte(capacity int, fn func([]byte) []byte) []byte
-```
-
-WithEmptyByte 使用空字节切片执行函数，自动管理获取和归还
-
-**参数:**
-- `capacity`: 字节切片初始容量
-- `fn`: 使用字节切片的函数，通过append等操作构建数据
-
-**返回值:**
-- `[]byte`: 函数执行后字节切片的数据副本
-
-**使用示例:**
-
-```go
-data := pool.WithEmptyByte(1024, func(buf []byte) []byte {
-    buf = append(buf, []byte("Hello")...)
-    buf = append(buf, ' ')
-    buf = append(buf, []byte("World")...)
-    return buf
+data := pool.WithBufCap(1024, func(buf *bytes.Buffer) {
+    buf.WriteString("Hello")
+    buf.WriteByte(' ')
+    buf.WriteString("World")
 })
 ```
 
@@ -497,10 +359,10 @@ func WithRand[T any](fn func(*rand.Rand) T) T
 WithRand 使用随机数生成器执行函数，自动管理获取和归还
 
 **参数:**
-- `fn`: 使用随机数生成器的函数
+- fn: 使用随机数生成器的函数
 
 **返回值:**
-- `T`: 函数返回的结果
+- T: 函数返回的结果
 
 **使用示例:**
 
@@ -525,11 +387,11 @@ func WithRandSeed[T any](seed int64, fn func(*rand.Rand) T) T
 WithRandSeed 使用指定种子的随机数生成器执行函数，自动管理获取和归还
 
 **参数:**
-- `seed`: 随机数种子
-- `fn`: 使用随机数生成器的函数
+- seed: 随机数种子
+- fn: 使用随机数生成器的函数
 
 **返回值:**
-- `T`: 函数返回的结果
+- T: 函数返回的结果
 
 **使用示例:**
 
@@ -544,25 +406,49 @@ nums := pool.WithRandSeed(12345, func(rng *rand.Rand) []int {
 })
 ```
 
-### func WithString
+### func WithStr
 
 ```go
-func WithString(capacity int, fn func(*strings.Builder)) string
+func WithStr(fn func(*strings.Builder)) string
 ```
 
-WithString 使用字符串构建器执行函数，自动管理获取和归还
+WithStr 使用默认容量的字符串构建器执行函数，自动管理获取和归还
 
 **参数:**
-- `capacity`: 字符串构建器初始容量大小
-- `fn`: 使用字符串构建器的函数
+- fn: 使用字符串构建器的函数
 
 **返回值:**
-- `string`: 函数执行后构建的字符串结果
+- string: 函数执行后构建的字符串结果
 
 **使用示例:**
 
 ```go
-result := pool.WithString(64, func(buf *strings.Builder) {
+result := pool.WithStr(func(buf *strings.Builder) {
+    buf.WriteString("Hello")
+    buf.WriteByte(' ')
+    buf.WriteString("World")
+})
+```
+
+### func WithStrCap
+
+```go
+func WithStrCap(cap int, fn func(*strings.Builder)) string
+```
+
+WithStrCap 使用指定容量的字符串构建器执行函数，自动管理获取和归还
+
+**参数:**
+- cap: 字符串构建器初始容量
+- fn: 使用字符串构建器的函数
+
+**返回值:**
+- string: 函数执行后构建的字符串结果
+
+**使用示例:**
+
+```go
+result := pool.WithStrCap(64, func(buf *strings.Builder) {
     buf.WriteString("Hello")
     buf.WriteByte(' ')
     buf.WriteString("World")
@@ -571,151 +457,114 @@ result := pool.WithString(64, func(buf *strings.Builder) {
 
 ## Types
 
-### type BufferPool
+### type BufPool
 
 ```go
-type BufferPool struct {
+type BufPool struct {
 	// Has unexported fields.
 }
 ```
 
-BufferPool 字节缓冲区对象池，支持自定义配置
+BufPool 字节缓冲区对象池，支持自定义配置
 
-#### func NewBufferPool
+#### func NewBufPool
 
 ```go
-func NewBufferPool(defaultSize, maxSize int) *BufferPool
+func NewBufPool(defCap, maxCap int) *BufPool
 ```
 
-NewBufferPool 创建新的字节缓冲区对象池
+NewBufPool 创建新的字节缓冲区对象池
 
 **参数:**
-- `defaultSize`: 默认字节缓冲区容量大小
-- `maxSize`: 最大回收缓冲区大小，超过此大小的缓冲区不会被回收
+- defCap: 默认字节缓冲区容量
+- maxCap: 最大回收缓冲区容量，超过此容量的缓冲区不会被回收
 
 **返回值:**
-- `*BufferPool`: 字节缓冲区对象池实例
+- *BufPool: 字节缓冲区对象池实例
 
-#### func (*BufferPool) Drain
-
-```go
-func (bp *BufferPool) Drain()
-```
-
-Drain 清空对象池中的所有字节缓冲区
-
-**说明:**
-- 清空当前对象池中的所有字节缓冲区
-- 重新创建sync.Pool，释放可能占用的大量内存
-- 适用于内存紧张或需要重置对象池状态的场景
-
-#### func (*BufferPool) Get
+#### func (*BufPool) Get
 
 ```go
-func (bp *BufferPool) Get(capacity int) *bytes.Buffer
+func (bp *BufPool) Get() *bytes.Buffer
 ```
 
-Get 获取指定容量的字节缓冲区
-
-**参数:**
-- `capacity`: 需要的字节缓冲区容量大小
+Get 获取默认容量的字节缓冲区
 
 **返回:**
-- `*bytes.Buffer`: 容量至少为capacity的字节缓冲区
+- *bytes.Buffer: 容量至少为默认容量的字节缓冲区
+
+**说明:**
+- 返回的字节缓冲区已经重置为空状态，可以直接使用
+- 底层容量可能大于默认容量，来自对象池的复用缓冲区
+
+#### func (*BufPool) GetCap
+
+```go
+func (bp *BufPool) GetCap(cap int) *bytes.Buffer
+```
+
+GetCap 获取指定容量的字节缓冲区
+
+**参数:**
+- cap: 需要的字节缓冲区容量
+
+**返回:**
+- *bytes.Buffer: 容量至少为capacity的字节缓冲区
 
 **说明:**
 - 返回的字节缓冲区已经重置为空状态，可以直接使用
 - 底层容量可能大于capacity，来自对象池的复用缓冲区
+- 如果capacity <= 0, 返回默认容量的缓冲区
 
-#### func (*BufferPool) GetEmpty
-
-```go
-func (bp *BufferPool) GetEmpty(minCap int) *bytes.Buffer
-```
-
-GetEmpty 获取指定容量的空字节缓冲区
-
-**参数:**
-- `minCap`: 最小容量要求
-
-**返回:**
-- `*bytes.Buffer`: 长度为0但容量至少为minCap的字节缓冲区
-
-**说明:**
-- 适用于需要逐步写入数据的场景
-- 避免频繁的内存重新分配
-
-#### func (*BufferPool) GetMaxSize
+#### func (*BufPool) Put
 
 ```go
-func (bp *BufferPool) GetMaxSize() int
-```
-
-GetMaxSize 获取当前最大回收缓冲区大小
-
-**返回:**
-- `int`: 当前最大回收大小
-
-#### func (*BufferPool) Put
-
-```go
-func (bp *BufferPool) Put(buffer *bytes.Buffer)
+func (bp *BufPool) Put(buf *bytes.Buffer)
 ```
 
 Put 归还字节缓冲区到对象池
 
 **参数:**
-- `buffer`: 要归还的字节缓冲区
+- buf: 要归还的字节缓冲区
 
-#### func (*BufferPool) SetMaxSize
-
-```go
-func (bp *BufferPool) SetMaxSize(maxSize int)
-```
-
-SetMaxSize 动态调整最大回收缓冲区大小
-
-**参数:**
-- `maxSize`: 新的最大回收大小
-
-**说明:**
-- 运行时动态调整配置
-- 如果新的maxSize小于当前值，建议调用Drain()清空对象池
-
-#### func (*BufferPool) Warm
+#### func (*BufPool) With
 
 ```go
-func (bp *BufferPool) Warm(count int, capacity int)
+func (bp *BufPool) With(fn func(*bytes.Buffer)) []byte
 ```
 
-Warm 预热对象池
+With 使用默认容量的字节缓冲区执行函数，自动管理获取和归还
 
 **参数:**
-- `count`: 预分配的字节缓冲区数量
-- `capacity`: 每个字节缓冲区的容量
-
-**说明:**
-- 在应用启动时调用，预分配指定数量的字节缓冲区
-- 减少冷启动时的内存分配延迟
-- 提升初期性能表现
-
-#### func (*BufferPool) WithBuffer
-
-```go
-func (bp *BufferPool) WithBuffer(capacity int, fn func(*bytes.Buffer)) []byte
-```
-
-WithBuffer 使用字节缓冲区执行函数，自动管理获取和归还
-
-**参数:**
-- `capacity`: 字节缓冲区初始容量大小
-- `fn`: 使用字节缓冲区的函数
+- fn: 使用字节缓冲区的函数
 
 **返回值:**
-- `[]byte`: 函数执行后缓冲区的字节数据副本
+- []byte: 函数执行后缓冲区的字节数据副本
 
 **说明:**
-- 自动从对象池获取字节缓冲区
+- 自动从对象池获取默认容量的字节缓冲区
+- 执行用户提供的函数
+- 获取缓冲区字节数据的副本
+- 自动归还字节缓冲区到对象池
+- 即使函数发生panic也会正确归还资源
+
+#### func (*BufPool) WithCap
+
+```go
+func (bp *BufPool) WithCap(cap int, fn func(*bytes.Buffer)) []byte
+```
+
+WithCap 使用指定容量的字节缓冲区执行函数，自动管理获取和归还
+
+**参数:**
+- cap: 字节缓冲区初始容量
+- fn: 使用字节缓冲区的函数
+
+**返回值:**
+- []byte: 函数执行后缓冲区的字节数据副本
+
+**说明:**
+- 自动从对象池获取指定容量的字节缓冲区
 - 执行用户提供的函数
 - 获取缓冲区字节数据的副本
 - 自动归还字节缓冲区到对象池
@@ -729,317 +578,201 @@ type BytePool struct {
 }
 ```
 
-BytePool 字节切片对象池，支持自定义配置
+BytePool 字节切片对象池, 支持自定义配置
 
 #### func NewBytePool
 
 ```go
-func NewBytePool(defaultSize, maxSize int) *BytePool
+func NewBytePool(defCap, maxCap int) *BytePool
 ```
 
 NewBytePool 创建新的字节切片对象池
 
 **参数:**
-- `defaultSize`: 默认缓冲区大小
-- `maxSize`: 最大回收缓冲区大小，超过此大小的缓冲区不会被回收
+- defCap: 默认缓冲区容量
+- maxCap: 最大回收缓冲区容量, 超过此容量的缓冲区不会被回收
 
 **返回值:**
-- `*BytePool`: 字节切片对象池实例
-
-#### func (*BytePool) Drain
-
-```go
-func (bp *BytePool) Drain()
-```
-
-Drain 清空对象池中的所有缓冲区
-
-**说明:**
-- 清空当前对象池中的所有缓冲区
-- 重新创建sync.Pool，释放可能占用的大量内存
-- 适用于内存紧张或需要重置对象池状态的场景
+- *BytePool: 字节切片对象池实例
 
 #### func (*BytePool) Get
 
 ```go
-func (bp *BytePool) Get(size int) []byte
+func (bp *BytePool) Get() []byte
 ```
 
-Get 获取指定容量的缓冲区
-
-**参数:**
-- `size`: 需要的缓冲区容量大小
+Get 获取默认容量的缓冲区
 
 **返回:**
-- `[]byte`: 长度为size，容量至少为size的缓冲区切片
+- []byte: 长度为默认容量, 容量至少为默认容量的缓冲区切片
 
 **说明:**
-- 返回的缓冲区长度等于请求的size，可以直接使用
-- 底层容量可能大于size，来自对象池的复用缓冲区
+- 返回的缓冲区长度等于默认容量, 可以直接使用
+- 底层容量可能大于默认容量, 来自对象池的复用缓冲区
+
+#### func (*BytePool) GetCap
+
+```go
+func (bp *BytePool) GetCap(size int) []byte
+```
+
+GetCap 获取指定容量的缓冲区
+
+**参数:**
+- size: 需要的缓冲区容量
+
+**返回:**
+- []byte: 长度为capacity, 容量至少为capacity的缓冲区切片
+
+**说明:**
+- 返回的缓冲区长度等于请求的capacity, 可以直接使用
+- 底层容量可能大于capacity, 来自对象池的复用缓冲区
+- 如果capacity <= 0, 使用默认容量
 
 #### func (*BytePool) GetEmpty
 
 ```go
-func (bp *BytePool) GetEmpty(minCap int) []byte
+func (bp *BytePool) GetEmpty(size int) []byte
 ```
 
 GetEmpty 获取指定容量的空缓冲区
 
 **参数:**
-- `minCap`: 最小容量要求
+- size: 指定容量要求
 
 **返回:**
-- `[]byte`: 长度为0但容量至少为minCap的缓冲区切片
+- []byte: 长度为0但容量至少为capacity的缓冲区切片
 
 **说明:**
 - 适用于需要使用append操作逐步构建数据的场景
 - 避免频繁的内存重新分配
-
-#### func (*BytePool) GetMaxSize
-
-```go
-func (bp *BytePool) GetMaxSize() int
-```
-
-GetMaxSize 获取当前最大回收缓冲区大小
-
-**返回:**
-- `int`: 当前最大回收大小
+- 如果capacity <= 0, 使用默认容量
 
 #### func (*BytePool) Put
 
 ```go
-func (bp *BytePool) Put(buffer []byte)
+func (bp *BytePool) Put(buf []byte)
 ```
 
 Put 归还缓冲区到对象池
 
 **参数:**
-- `buffer`: 要归还的缓冲区
+- buf: 要归还的缓冲区
 
-#### func (*BytePool) SetMaxSize
-
-```go
-func (bp *BytePool) SetMaxSize(maxSize int)
-```
-
-SetMaxSize 动态调整最大回收缓冲区大小
-
-**参数:**
-- `maxSize`: 新的最大回收大小
-
-**说明:**
-- 运行时动态调整配置
-- 如果新的maxSize小于当前值，建议调用Drain()清空对象池
-
-#### func (*BytePool) Warm
+### type StrPool
 
 ```go
-func (bp *BytePool) Warm(count int, size int)
-```
-
-Warm 预热对象池
-
-**参数:**
-- `count`: 预分配的缓冲区数量
-- `size`: 每个缓冲区的大小
-
-**说明:**
-- 在应用启动时调用，预分配指定数量的缓冲区
-- 减少冷启动时的内存分配延迟
-- 提升初期性能表现
-
-#### func (*BytePool) WithByte
-
-```go
-func (bp *BytePool) WithByte(size int, fn func([]byte)) []byte
-```
-
-WithByte 使用字节切片执行函数，自动管理获取和归还
-
-**参数:**
-- `size`: 字节切片初始大小
-- `fn`: 使用字节切片的函数
-
-**返回值:**
-- `[]byte`: 函数执行后字节切片的数据副本
-
-**说明:**
-- 自动从对象池获取字节切片
-- 执行用户提供的函数
-- 获取字节切片数据的副本
-- 自动归还字节切片到对象池
-- 即使函数发生panic也会正确归还资源
-
-#### func (*BytePool) WithEmptyByte
-
-```go
-func (bp *BytePool) WithEmptyByte(capacity int, fn func([]byte) []byte) []byte
-```
-
-WithEmptyByte 使用空字节切片执行函数，自动管理获取和归还
-
-**参数:**
-- `capacity`: 字节切片初始容量
-- `fn`: 使用字节切片的函数，通过append等操作构建数据
-
-**返回值:**
-- `[]byte`: 函数执行后字节切片的数据副本
-
-**说明:**
-- 自动从对象池获取空字节切片（长度为0）
-- 执行用户提供的函数，函数需要返回构建后的切片
-- 获取字节切片数据的副本
-- 自动归还字节切片到对象池
-- 即使函数发生panic也会正确归还资源
-
-### type StringPool
-
-```go
-type StringPool struct {
+type StrPool struct {
 	// Has unexported fields.
 }
 ```
 
-StringPool 字符串构建器对象池，支持自定义配置
+StrPool 字符串构建器对象池，支持自定义配置
 
-#### func NewStringPool
+#### func NewStrPool
 
 ```go
-func NewStringPool(defaultSize, maxSize int) *StringPool
+func NewStrPool(defCap, maxCap int) *StrPool
 ```
 
-NewStringPool 创建新的字符串构建器对象池
+NewStrPool 创建新的字符串构建器对象池
 
 **参数:**
-- `defaultSize`: 默认字符串构建器容量大小
-- `maxSize`: 最大回收构建器大小，超过此大小的构建器不会被回收
+- defCap: 默认字符串构建器容量
+- maxCap: 最大回收构建器容量，超过此容量的构建器不会被回收
 
 **返回值:**
-- `*StringPool`: 字符串构建器对象池实例
+- *StrPool: 字符串构建器对象池实例
 
-#### func (*StringPool) Drain
-
-```go
-func (sp *StringPool) Drain()
-```
-
-Drain 清空对象池中的所有字符串构建器
-
-**说明:**
-- 清空当前对象池中的所有字符串构建器
-- 重新创建sync.Pool，释放可能占用的大量内存
-- 适用于内存紧张或需要重置对象池状态的场景
-
-#### func (*StringPool) Get
+#### func (*StrPool) Get
 
 ```go
-func (sp *StringPool) Get(capacity int) *strings.Builder
+func (sp *StrPool) Get() *strings.Builder
 ```
 
-Get 获取指定容量的字符串构建器
-
-**参数:**
-- `capacity`: 需要的字符串构建器容量大小
+Get 获取默认容量的字符串构建器
 
 **返回:**
-- `*strings.Builder`: 容量至少为capacity的字符串构建器
+- *strings.Builder: 容量至少为默认容量的字符串构建器
+
+**说明:**
+- 返回的字符串构建器已经重置为空状态，可以直接使用
+- 底层容量可能大于默认容量，来自对象池的复用构建器
+
+#### func (*StrPool) GetCap
+
+```go
+func (sp *StrPool) GetCap(cap int) *strings.Builder
+```
+
+GetCap 获取指定容量的字符串构建器
+
+**参数:**
+- cap: 需要的字符串构建器容量
+
+**返回:**
+- *strings.Builder: 容量至少为capacity的字符串构建器
 
 **说明:**
 - 返回的字符串构建器已经重置为空状态，可以直接使用
 - 底层容量可能大于capacity，来自对象池的复用构建器
+- 如果capacity <= 0, 返回默认容量的构建器
 
-#### func (*StringPool) GetEmpty
-
-```go
-func (sp *StringPool) GetEmpty(minCap int) *strings.Builder
-```
-
-GetEmpty 获取指定容量的空字符串构建器
-
-**参数:**
-- `minCap`: 最小容量要求
-
-**返回:**
-- `*strings.Builder`: 长度为0但容量至少为minCap的字符串构建器
-
-**说明:**
-- 适用于需要逐步构建字符串的场景
-- 避免频繁的内存重新分配
-
-#### func (*StringPool) GetMaxSize
+#### func (*StrPool) Put
 
 ```go
-func (sp *StringPool) GetMaxSize() int
-```
-
-GetMaxSize 获取当前最大回收构建器大小
-
-**返回:**
-- `int`: 当前最大回收大小
-
-#### func (*StringPool) Put
-
-```go
-func (sp *StringPool) Put(builder *strings.Builder)
+func (sp *StrPool) Put(buf *strings.Builder)
 ```
 
 Put 归还字符串构建器到对象池
 
 **参数:**
-- `builder`: 要归还的字符串构建器
-
-#### func (*StringPool) SetMaxSize
-
-```go
-func (sp *StringPool) SetMaxSize(maxSize int)
-```
-
-SetMaxSize 动态调整最大回收构建器大小
-
-**参数:**
-- `maxSize`: 新的最大回收大小
+- b: 要归还的字符串构建器
 
 **说明:**
-- 运行时动态调整配置
-- 如果新的maxSize小于当前值，建议调用Drain()清空对象池
+- nil构建器不会被回收
+- 容量不超过maxCap的构建器直接重置后归还
+- 容量超过maxCap的构建器会创建一个新的小容量构建器进行归还（智能缩容）
 
-#### func (*StringPool) Warm
-
-```go
-func (sp *StringPool) Warm(count int, capacity int)
-```
-
-Warm 预热对象池
-
-**参数:**
-- `count`: 预分配的字符串构建器数量
-- `capacity`: 每个字符串构建器的容量
-
-**说明:**
-- 在应用启动时调用，预分配指定数量的字符串构建器
-- 减少冷启动时的内存分配延迟
-- 提升初期性能表现
-
-#### func (*StringPool) WithString
+#### func (*StrPool) With
 
 ```go
-func (sp *StringPool) WithString(capacity int, fn func(*strings.Builder)) string
+func (sp *StrPool) With(fn func(*strings.Builder)) string
 ```
 
-WithString 使用字符串构建器执行函数，自动管理获取和归还
+With 使用默认容量的字符串构建器执行函数，自动管理获取和归还
 
 **参数:**
-- `capacity`: 字符串构建器初始容量大小
-- `fn`: 使用字符串构建器的函数
+- fn: 使用字符串构建器的函数
 
 **返回值:**
-- `string`: 函数执行后构建的字符串结果
+- string: 函数执行后构建的字符串结果
 
 **说明:**
-- 自动从对象池获取字符串构建器
+- 自动从对象池获取默认容量的字符串构建器
 - 执行用户提供的函数
 - 获取构建的字符串结果
 - 自动归还字符串构建器到对象池
 - 即使函数发生panic也会正确归还资源
 
+#### func (*StrPool) WithCap
+
+```go
+func (sp *StrPool) WithCap(cap int, fn func(*strings.Builder)) string
+```
+
+WithCap 使用指定容量的字符串构建器执行函数，自动管理获取和归还
+
+**参数:**
+- cap: 字符串构建器初始容量
+- fn: 使用字符串构建器的函数
+
+**返回值:**
+- string: 函数执行后构建的字符串结果
+
+**说明:**
+- 自动从对象池获取指定容量的字符串构建器
+- 执行用户提供的函数
+- 获取构建的字符串结果
+- 自动归还字符串构建器到对象池
+- 即使函数发生panic也会正确归还资源
