@@ -20,7 +20,7 @@ func SafeDeref(s *string) string {
 	return *s
 }
 
-// BuildStr 使用默认容量的字符串构建器执行函数
+// BuildStr 使用字符串构建器执行函数
 //
 // 参数:
 //   - fn: 使用字符串构建器的函数
