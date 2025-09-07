@@ -70,7 +70,7 @@ func GetByteEmpty(size int) []byte { return defBytePool.GetEmpty(size) }
 //	    buf = append(buf, ' ')
 //	    buf = append(buf, "World"...)
 //	})
-func WithByte(fn func([]byte)) []byte { return defBytePool.With(fn) }
+func WithByte(fn func(*[]byte)) []byte { return defBytePool.With(fn) }
 
 // WithByteCap 使用指定容量的字节缓冲区执行函数，自动管理获取和归还
 //
@@ -88,7 +88,7 @@ func WithByte(fn func([]byte)) []byte { return defBytePool.With(fn) }
 //	    buf = append(buf, ' ')
 //	    buf = append(buf, "World"...)
 //	})
-func WithByteCap(size int, fn func([]byte)) []byte {
+func WithByteCap(size int, fn func(*[]byte)) []byte {
 	return defBytePool.WithCap(size, fn)
 }
 
@@ -230,10 +230,10 @@ func (bp *BytePool) GetEmpty(size int) []byte {
 //   - 获取缓冲区字节数据的副本
 //   - 自动归还字节缓冲区到对象池
 //   - 即使函数发生panic也会正确归还资源
-func (bp *BytePool) With(fn func([]byte)) []byte {
+func (bp *BytePool) With(fn func(*[]byte)) []byte {
 	buf := bp.GetEmpty(0)
 	defer bp.Put(buf)
-	fn(buf)
+	fn(&buf)
 	return append([]byte(nil), buf...) // 一次性拷贝
 }
 
@@ -252,9 +252,9 @@ func (bp *BytePool) With(fn func([]byte)) []byte {
 //   - 获取缓冲区字节数据的副本
 //   - 自动归还字节缓冲区到对象池
 //   - 即使函数发生panic也会正确归还资源
-func (bp *BytePool) WithCap(size int, fn func([]byte)) []byte {
+func (bp *BytePool) WithCap(size int, fn func(*[]byte)) []byte {
 	buf := bp.GetEmpty(size)
 	defer bp.Put(buf)
-	fn(buf)
+	fn(&buf)
 	return append([]byte(nil), buf...)
 }
