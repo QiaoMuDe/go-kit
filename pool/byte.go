@@ -55,42 +55,42 @@ func PutByte(buf []byte) { defBytePool.Put(buf) }
 //   - []byte: 长度为0但容量至少为capacity的缓冲区切片
 func GetByteEmpty(size int) []byte { return defBytePool.GetEmpty(size) }
 
-// WithByte 使用默认容量的字节缓冲区执行函数，自动管理获取和归还
-//
-// 参数:
-//   - fn: 使用字节缓冲区的函数
-//
-// 返回值:
-//   - []byte: 函数执行后缓冲区的字节数据副本
-//
-// 使用示例:
-//
-//	data := pool.WithByte(func(buf []byte) {
-//	    buf = append(buf, "Hello"...)
-//	    buf = append(buf, ' ')
-//	    buf = append(buf, "World"...)
-//	})
-func WithByte(fn func(*[]byte)) []byte { return defBytePool.With(fn) }
+// // WithByte 使用默认容量的字节缓冲区执行函数，自动管理获取和归还
+// //
+// // 参数:
+// //   - fn: 使用字节缓冲区的函数
+// //
+// // 返回值:
+// //   - []byte: 函数执行后缓冲区的字节数据副本
+// //
+// // 使用示例:
+// //
+// //	data := pool.WithByte(func(buf []byte) {
+// //	    buf = append(buf, "Hello"...)
+// //	    buf = append(buf, ' ')
+// //	    buf = append(buf, "World"...)
+// //	})
+// func WithByte(fn func(*[]byte)) []byte { return defBytePool.With(fn) }
 
-// WithByteCap 使用指定容量的字节缓冲区执行函数，自动管理获取和归还
-//
-// 参数:
-//   - size: 字节缓冲区初始容量
-//   - fn: 使用字节缓冲区的函数
-//
-// 返回值:
-//   - []byte: 函数执行后缓冲区的字节数据副本
-//
-// 使用示例:
-//
-//	data := pool.WithByteCap(1024, func(buf []byte) {
-//	    buf = append(buf, "Hello"...)
-//	    buf = append(buf, ' ')
-//	    buf = append(buf, "World"...)
-//	})
-func WithByteCap(size int, fn func(*[]byte)) []byte {
-	return defBytePool.WithCap(size, fn)
-}
+// // WithByteCap 使用指定容量的字节缓冲区执行函数，自动管理获取和归还
+// //
+// // 参数:
+// //   - size: 字节缓冲区初始容量
+// //   - fn: 使用字节缓冲区的函数
+// //
+// // 返回值:
+// //   - []byte: 函数执行后缓冲区的字节数据副本
+// //
+// // 使用示例:
+// //
+// //	data := pool.WithByteCap(1024, func(buf []byte) {
+// //	    buf = append(buf, "Hello"...)
+// //	    buf = append(buf, ' ')
+// //	    buf = append(buf, "World"...)
+// //	})
+// func WithByteCap(size int, fn func(*[]byte)) []byte {
+// 	return defBytePool.WithCap(size, fn)
+// }
 
 // BytePool 字节切片对象池, 支持自定义配置
 type BytePool struct {
@@ -216,45 +216,45 @@ func (bp *BytePool) GetEmpty(size int) []byte {
 	return make([]byte, 0, size)
 }
 
-// With 使用默认容量的字节缓冲区执行函数，自动管理获取和归还
-//
-// 参数:
-//   - fn: 使用字节缓冲区的函数
-//
-// 返回值:
-//   - []byte: 函数执行后缓冲区的字节数据副本
-//
-// 说明:
-//   - 自动从对象池获取默认容量的字节缓冲区
-//   - 执行用户提供的函数
-//   - 获取缓冲区字节数据的副本
-//   - 自动归还字节缓冲区到对象池
-//   - 即使函数发生panic也会正确归还资源
-func (bp *BytePool) With(fn func(*[]byte)) []byte {
-	buf := bp.GetEmpty(0)
-	defer bp.Put(buf)
-	fn(&buf)
-	return append([]byte(nil), buf...) // 一次性拷贝
-}
+// // With 使用默认容量的字节缓冲区执行函数，自动管理获取和归还
+// //
+// // 参数:
+// //   - fn: 使用字节缓冲区的函数
+// //
+// // 返回值:
+// //   - []byte: 函数执行后缓冲区的字节数据副本
+// //
+// // 说明:
+// //   - 自动从对象池获取默认容量的字节缓冲区
+// //   - 执行用户提供的函数
+// //   - 获取缓冲区字节数据的副本
+// //   - 自动归还字节缓冲区到对象池
+// //   - 即使函数发生panic也会正确归还资源
+// func (bp *BytePool) With(fn func(*[]byte)) []byte {
+// 	buf := bp.GetEmpty(0)
+// 	defer bp.Put(buf)
+// 	fn(&buf)
+// 	return append([]byte(nil), buf...) // 一次性拷贝
+// }
 
-// WithCap 使用指定容量的字节缓冲区执行函数，自动管理获取和归还
-//
-// 参数:
-//   - size: 字节缓冲区初始容量
-//   - fn: 使用字节缓冲区的函数
-//
-// 返回值:
-//   - []byte: 函数执行后缓冲区的字节数据副本
-//
-// 说明:
-//   - 自动从对象池获取指定容量的字节缓冲区
-//   - 执行用户提供的函数
-//   - 获取缓冲区字节数据的副本
-//   - 自动归还字节缓冲区到对象池
-//   - 即使函数发生panic也会正确归还资源
-func (bp *BytePool) WithCap(size int, fn func(*[]byte)) []byte {
-	buf := bp.GetEmpty(size)
-	defer bp.Put(buf)
-	fn(&buf)
-	return append([]byte(nil), buf...)
-}
+// // WithCap 使用指定容量的字节缓冲区执行函数，自动管理获取和归还
+// //
+// // 参数:
+// //   - size: 字节缓冲区初始容量
+// //   - fn: 使用字节缓冲区的函数
+// //
+// // 返回值:
+// //   - []byte: 函数执行后缓冲区的字节数据副本
+// //
+// // 说明:
+// //   - 自动从对象池获取指定容量的字节缓冲区
+// //   - 执行用户提供的函数
+// //   - 获取缓冲区字节数据的副本
+// //   - 自动归还字节缓冲区到对象池
+// //   - 即使函数发生panic也会正确归还资源
+// func (bp *BytePool) WithCap(size int, fn func(*[]byte)) []byte {
+// 	buf := bp.GetEmpty(size)
+// 	defer bp.Put(buf)
+// 	fn(&buf)
+// 	return append([]byte(nil), buf...)
+// }
