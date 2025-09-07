@@ -46,7 +46,7 @@ func TestWithString(t *testing.T) {
 
 func TestWithBuffer(t *testing.T) {
 	t.Run("Basic usage", func(t *testing.T) {
-		result := WithBuffer(func(buf *bytes.Buffer) {
+		result := WithBuf(func(buf *bytes.Buffer) {
 			buf.WriteString("Hello")
 			buf.WriteByte(' ')
 			buf.WriteString("World")
@@ -59,7 +59,7 @@ func TestWithBuffer(t *testing.T) {
 	})
 
 	t.Run("Binary data", func(t *testing.T) {
-		result := WithBuffer(func(buf *bytes.Buffer) {
+		result := WithBuf(func(buf *bytes.Buffer) {
 			buf.Write([]byte{0x01, 0x02, 0x03, 0x04})
 		})
 
@@ -70,7 +70,7 @@ func TestWithBuffer(t *testing.T) {
 	})
 
 	t.Run("Empty buffer", func(t *testing.T) {
-		result := WithBuffer(func(buf *bytes.Buffer) {
+		result := WithBuf(func(buf *bytes.Buffer) {
 			// 不写入任何内容
 		})
 
@@ -106,20 +106,20 @@ func BenchmarkWithString(b *testing.B) {
 
 func BenchmarkTraditionalBuffer(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		buf := GetBuffer()
+		buf := GetBuf()
 		buf.WriteString("Hello")
 		buf.WriteByte(' ')
 		buf.WriteString("World")
 		result := make([]byte, buf.Len())
 		copy(result, buf.Bytes())
-		PutBuffer(buf)
+		PutBuf(buf)
 		_ = result
 	}
 }
 
 func BenchmarkWithBuffer(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		result := WithBuffer(func(buf *bytes.Buffer) {
+		result := WithBuf(func(buf *bytes.Buffer) {
 			buf.WriteString("Hello")
 			buf.WriteByte(' ')
 			buf.WriteString("World")

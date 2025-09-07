@@ -32,11 +32,11 @@ func GetStrCap(cap int) *strings.Builder {
 // PutStr 将字符串构建器归还到默认字符串池
 //
 // 参数:
-//   - b: 要归还的字符串构建器
+//   - buf: 要归还的字符串构建器
 //
 // 说明:
 //   - 该函数将字符串构建器归还到对象池，以便后续复用。
-func PutStr(b *strings.Builder) { defStrPool.Put(b) }
+func PutStr(buf *strings.Builder) { defStrPool.Put(buf) }
 
 // WithStr 使用默认容量的字符串构建器执行函数，自动管理获取和归还
 //
@@ -77,30 +77,30 @@ func WithStrCap(cap int, fn func(*strings.Builder)) string {
 
 // StrPool 字符串构建器对象池，支持自定义配置
 type StrPool struct {
-	pool    sync.Pool // 字符串构建器对象池
-	maxCap  int       // 最大回收构建器容量
-	deftCap int       // 默认构建器容量
+	pool   sync.Pool // 字符串构建器对象池
+	maxCap int       // 最大回收构建器容量
+	defCap int       // 默认构建器容量
 }
 
 // NewStrPool 创建新的字符串构建器对象池
 //
 // 参数:
-//   - deftCap: 默认字符串构建器容量
+//   - defCap: 默认字符串构建器容量
 //   - maxCap: 最大回收构建器容量，超过此容量的构建器不会被回收
 //
 // 返回值:
 //   - *StrPool: 字符串构建器对象池实例
-func NewStrPool(deftCap, maxCap int) *StrPool {
-	if deftCap <= 0 {
-		deftCap = 256 // 默认256字节
+func NewStrPool(defCap, maxCap int) *StrPool {
+	if defCap <= 0 {
+		defCap = 256 // 默认256字节
 	}
 	if maxCap <= 0 {
 		maxCap = 32 * 1024 // 默认32KB
 	}
 
 	return &StrPool{
-		maxCap:  maxCap,
-		deftCap: deftCap,
+		maxCap: maxCap,
+		defCap: defCap,
 		pool: sync.Pool{
 			New: func() any {
 				return new(strings.Builder)
@@ -118,7 +118,7 @@ func NewStrPool(deftCap, maxCap int) *StrPool {
 //   - 返回的字符串构建器已经重置为空状态，可以直接使用
 //   - 底层容量可能大于默认容量，来自对象池的复用构建器
 func (sp *StrPool) Get() *strings.Builder {
-	return sp.GetCap(sp.deftCap)
+	return sp.GetCap(sp.defCap)
 }
 
 // GetCap 获取指定容量的字符串构建器
@@ -135,7 +135,7 @@ func (sp *StrPool) Get() *strings.Builder {
 //   - 如果capacity <= 0, 返回默认容量的构建器
 func (sp *StrPool) GetCap(cap int) *strings.Builder {
 	if cap <= 0 {
-		cap = sp.deftCap
+		cap = sp.defCap
 	}
 	builder, ok := sp.pool.Get().(*strings.Builder)
 	if !ok {
@@ -162,12 +162,12 @@ func (sp *StrPool) GetCap(cap int) *strings.Builder {
 //   - nil构建器不会被回收
 //   - 容量不超过maxCap的构建器直接重置后归还
 //   - 容量超过maxCap的构建器会创建一个新的小容量构建器进行归还（智能缩容）
-func (sp *StrPool) Put(b *strings.Builder) {
-	if b == nil || b.Cap() > sp.maxCap {
+func (sp *StrPool) Put(buf *strings.Builder) {
+	if buf == nil || buf.Cap() > sp.maxCap {
 		return // 为nil或容量过大不处理, 交给gc回收
 	}
-	b.Reset()
-	sp.pool.Put(b)
+	buf.Reset()
+	sp.pool.Put(buf)
 }
 
 // With 使用默认容量的字符串构建器执行函数，自动管理获取和归还
@@ -185,10 +185,10 @@ func (sp *StrPool) Put(b *strings.Builder) {
 //   - 自动归还字符串构建器到对象池
 //   - 即使函数发生panic也会正确归还资源
 func (sp *StrPool) With(fn func(*strings.Builder)) string {
-	b := sp.Get()
-	defer sp.Put(b)
-	fn(b)
-	return b.String()
+	buf := sp.Get()
+	defer sp.Put(buf)
+	fn(buf)
+	return buf.String()
 }
 
 // WithCap 使用指定容量的字符串构建器执行函数，自动管理获取和归还
@@ -207,8 +207,8 @@ func (sp *StrPool) With(fn func(*strings.Builder)) string {
 //   - 自动归还字符串构建器到对象池
 //   - 即使函数发生panic也会正确归还资源
 func (sp *StrPool) WithCap(cap int, fn func(*strings.Builder)) string {
-	b := sp.GetCap(cap)
-	defer sp.Put(b)
-	fn(b)
-	return b.String()
+	buf := sp.GetCap(cap)
+	defer sp.Put(buf)
+	fn(buf)
+	return buf.String()
 }

@@ -20,7 +20,7 @@ func BenchmarkTraditionalByte(b *testing.B) {
 
 func BenchmarkTraditionalEmptyByte(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		buf := GetEmptyByte(64)
+		buf := GetByteEmpty(64)
 		buf = append(buf, []byte("Hello")...)
 		buf = append(buf, ' ')
 		buf = append(buf, []byte("World")...)
