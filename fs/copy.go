@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"gitee.com/MM-Q/go-kit/pool"
@@ -258,16 +259,23 @@ func copyFile(src, dst string, overwrite bool) error {
 }
 
 // copySymlink 复制符号链接
-// 读取源符号链接的目标，然后在目标位置创建相同的符号链接
+// Windows 平台：当作普通文件复制（因为 Windows 主要使用快捷方式而非符号链接）
+// 非 Windows 平台：创建相同的符号链接
 //
 // 参数:
 //   - src: 源符号链接路径
-//   - dst: 目标符号链接路径
+//   - dst: 目标路径
 //   - overwrite: 是否允许覆盖已存在的目标
 //
 // 返回:
 //   - error: 复制失败时返回错误
 func copySymlink(src, dst string, overwrite bool) error {
+	// Windows 平台：当作普通文件复制
+	if runtime.GOOS == "windows" {
+		return copyFile(src, dst, overwrite)
+	}
+
+	// 非 Windows 平台：创建符号链接
 	// 安全覆盖机制：处理已存在的目标符号链接
 	backupPath, err := handleBackupAndRestore(dst, overwrite)
 	if err != nil {
