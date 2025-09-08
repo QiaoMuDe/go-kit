@@ -10,17 +10,111 @@ import (
 	"gitee.com/MM-Q/go-kit/pool"
 )
 
-// copyFileInternal 内部复制文件逻辑
+// CopyFile 复制文件并继承权限（默认不覆盖已存在的目标文件）
 // 用于安全地复制文件，保持原文件的权限信息，失败时自动清理
 //
 // 参数:
 //   - src: 源文件路径
 //   - dst: 目标文件路径
-//   - overwrite: 是否允许覆盖已存在的目标文件
+//
+// 返回:
+//   - error: 复制失败时返回错误，如果目标文件已存在则返回错误
+func CopyFile(src, dst string) error {
+	return copyFileInternal(src, dst, false)
+}
+
+// CopyFileEx 复制文件并继承权限（可控制是否覆盖）
+// 用于安全地复制文件，保持原文件的权限信息，失败时自动清理
+//
+// 参数:
+//   - src: 源文件路径
+//   - dst: 目标文件路径
+//   - overwrite: 是否允许覆盖已存在的目标文件，false时如果目标文件存在则返回错误
 //
 // 返回:
 //   - error: 复制失败时返回错误
-func copyFileInternal(src, dst string, overwrite bool) error {
+func CopyFileEx(src, dst string, overwrite bool) error {
+	return copyFileInternal(src, dst, overwrite)
+}
+
+// CopyDir 复制目录及其所有内容（默认不覆盖已存在的文件）
+// 用于递归复制整个目录，保持文件权限和目录结构
+//
+// 参数:
+//   - src: 源目录路径
+//   - dst: 目标目录路径
+//
+// 返回:
+//   - error: 复制失败时返回错误，如果目标目录或文件已存在则返回错误
+func CopyDir(src, dst string) error {
+	return copyDirInternal(src, dst, false)
+}
+
+// CopyDirEx 复制目录及其所有内容（可控制是否覆盖）
+// 用于递归复制整个目录，保持文件权限和目录结构
+//
+// 参数:
+//   - src: 源目录路径
+//   - dst: 目标目录路径
+//   - overwrite: 是否允许覆盖已存在的文件，false时如果目标目录或文件存在则返回错误
+//
+// 返回:
+//   - error: 复制失败时返回错误
+func CopyDirEx(src, dst string, overwrite bool) error {
+	return copyDirInternal(src, dst, overwrite)
+}
+
+// Copy 通用复制函数，自动判断源路径类型并调用相应的复制函数
+// 如果源路径是文件则调用 CopyFile，如果是目录则调用 CopyDir
+//
+// 参数:
+//   - src: 源路径（文件或目录）
+//   - dst: 目标路径
+//
+// 返回:
+//   - error: 复制失败时返回错误，如果目标已存在则返回错误
+func Copy(src, dst string) error {
+	return CopyEx(src, dst, false)
+}
+
+// CopyEx 通用复制函数（可控制是否覆盖），自动判断源路径类型并调用相应的复制函数
+// 如果源路径是文件则调用 CopyFileEx，如果是目录则调用 CopyDirEx
+//
+// 参数:
+//   - src: 源路径（文件或目录）
+//   - dst: 目标路径
+//   - overwrite: 是否允许覆盖已存在的目标文件/目录
+//
+// 返回:
+//   - error: 复制失败时返回错误
+func CopyEx(src, dst string, overwrite bool) error {
+	// 获取源路径信息
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return fmt.Errorf("failed to get source info '%s': %w", src, err)
+	}
+
+	// 根据源路径类型调用相应的复制函数
+	if srcInfo.IsDir() {
+		return CopyDirEx(src, dst, overwrite)
+	} else if srcInfo.Mode().IsRegular() {
+		return CopyFileEx(src, dst, overwrite)
+	} else {
+		return fmt.Errorf("source '%s' is neither a regular file nor a directory", src)
+	}
+}
+
+// validateCopyPaths 验证复制操作的源路径和目标路径
+// 检查路径是否为空、获取绝对路径并验证源目标路径不相同
+//
+// 参数:
+//   - src: 源路径
+//   - dst: 目标路径
+//   - checkSubdir: 是否检查目录复制到子目录的情况（仅对目录复制有效）
+//
+// 返回:
+//   - error: 验证失败时返回错误
+func validateCopyPaths(src, dst string, checkSubdir bool) error {
 	// 参数验证
 	if src == "" || dst == "" {
 		return fmt.Errorf("source and destination paths cannot be empty")
@@ -37,6 +131,32 @@ func copyFileInternal(src, dst string, overwrite bool) error {
 	}
 	if srcAbs == dstAbs {
 		return fmt.Errorf("source and destination paths cannot be the same")
+	}
+
+	// 检查是否尝试将目录复制到自己的子目录中（仅对目录复制）
+	if checkSubdir {
+		if strings.HasPrefix(dstAbs+string(filepath.Separator), srcAbs+string(filepath.Separator)) {
+			return fmt.Errorf("cannot copy directory '%s' to its subdirectory '%s'", src, dst)
+		}
+	}
+
+	return nil
+}
+
+// copyFileInternal 内部复制文件逻辑
+// 用于安全地复制文件，保持原文件的权限信息，失败时自动清理
+//
+// 参数:
+//   - src: 源文件路径
+//   - dst: 目标文件路径
+//   - overwrite: 是否允许覆盖已存在的目标文件
+//
+// 返回:
+//   - error: 复制失败时返回错误
+func copyFileInternal(src, dst string, overwrite bool) error {
+	// 验证路径
+	if err := validateCopyPaths(src, dst, false); err != nil {
+		return err
 	}
 
 	// 检查目标文件是否存在
@@ -120,33 +240,6 @@ func copyFileInternal(src, dst string, overwrite bool) error {
 	return nil
 }
 
-// CopyFile 复制文件并继承权限（默认覆盖已存在的目标文件）
-// 用于安全地复制文件，保持原文件的权限信息，失败时自动清理
-//
-// 参数:
-//   - src: 源文件路径
-//   - dst: 目标文件路径
-//
-// 返回:
-//   - error: 复制失败时返回错误
-func CopyFile(src, dst string) error {
-	return copyFileInternal(src, dst, true)
-}
-
-// CopyFileWithOverwrite 复制文件并继承权限（可控制是否覆盖）
-// 用于安全地复制文件，保持原文件的权限信息，失败时自动清理
-//
-// 参数:
-//   - src: 源文件路径
-//   - dst: 目标文件路径
-//   - overwrite: 是否允许覆盖已存在的目标文件，false时如果目标文件存在则返回错误
-//
-// 返回:
-//   - error: 复制失败时返回错误
-func CopyFileWithOverwrite(src, dst string, overwrite bool) error {
-	return copyFileInternal(src, dst, overwrite)
-}
-
 // copyDirInternal 内部复制目录逻辑
 // 用于递归复制整个目录，保持文件权限和目录结构
 //
@@ -158,27 +251,9 @@ func CopyFileWithOverwrite(src, dst string, overwrite bool) error {
 // 返回:
 //   - error: 复制失败时返回错误
 func copyDirInternal(src, dst string, overwrite bool) error {
-	// 参数验证
-	if src == "" || dst == "" {
-		return fmt.Errorf("source and destination paths cannot be empty")
-	}
-
-	// 清理路径并检查是否相同
-	srcAbs, err := filepath.Abs(filepath.Clean(src))
-	if err != nil {
-		return fmt.Errorf("failed to get absolute path for source '%s': %w", src, err)
-	}
-	dstAbs, err := filepath.Abs(filepath.Clean(dst))
-	if err != nil {
-		return fmt.Errorf("failed to get absolute path for destination '%s': %w", dst, err)
-	}
-	if srcAbs == dstAbs {
-		return fmt.Errorf("source and destination paths cannot be the same")
-	}
-
-	// 检查是否尝试将目录复制到自己的子目录中
-	if strings.HasPrefix(dstAbs+string(filepath.Separator), srcAbs+string(filepath.Separator)) {
-		return fmt.Errorf("cannot copy directory '%s' to its subdirectory '%s'", src, dst)
+	// 验证路径
+	if err := validateCopyPaths(src, dst, true); err != nil {
+		return err
 	}
 
 	// 获取源目录信息
@@ -244,31 +319,4 @@ func copyDirInternal(src, dst string, overwrite bool) error {
 		// 跳过其他类型的文件（符号链接、设备文件等）
 		return nil
 	})
-}
-
-// CopyDir 复制目录及其所有内容（默认覆盖已存在的文件）
-// 用于递归复制整个目录，保持文件权限和目录结构
-//
-// 参数:
-//   - src: 源目录路径
-//   - dst: 目标目录路径
-//
-// 返回:
-//   - error: 复制失败时返回错误
-func CopyDir(src, dst string) error {
-	return copyDirInternal(src, dst, true)
-}
-
-// CopyDirWithOverwrite 复制目录及其所有内容（可控制是否覆盖）
-// 用于递归复制整个目录，保持文件权限和目录结构
-//
-// 参数:
-//   - src: 源目录路径
-//   - dst: 目标目录路径
-//   - overwrite: 是否允许覆盖已存在的文件，false时如果目标目录或文件存在则返回错误
-//
-// 返回:
-//   - error: 复制失败时返回错误
-func CopyDirWithOverwrite(src, dst string, overwrite bool) error {
-	return copyDirInternal(src, dst, overwrite)
 }
