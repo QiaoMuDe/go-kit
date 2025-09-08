@@ -10,65 +10,11 @@ import (
 	"gitee.com/MM-Q/go-kit/pool"
 )
 
-// CopyFile 复制文件并继承权限（默认不覆盖已存在的目标文件）
-// 用于安全地复制文件，保持原文件的权限信息，失败时自动清理
-//
-// 参数:
-//   - src: 源文件路径
-//   - dst: 目标文件路径
-//
-// 返回:
-//   - error: 复制失败时返回错误，如果目标文件已存在则返回错误
-func CopyFile(src, dst string) error {
-	return copyFileInternal(src, dst, false)
-}
-
-// CopyFileEx 复制文件并继承权限（可控制是否覆盖）
-// 用于安全地复制文件，保持原文件的权限信息，失败时自动清理
-//
-// 参数:
-//   - src: 源文件路径
-//   - dst: 目标文件路径
-//   - overwrite: 是否允许覆盖已存在的目标文件，false时如果目标文件存在则返回错误
-//
-// 返回:
-//   - error: 复制失败时返回错误
-func CopyFileEx(src, dst string, overwrite bool) error {
-	return copyFileInternal(src, dst, overwrite)
-}
-
-// CopyDir 复制目录及其所有内容（默认不覆盖已存在的文件）
-// 用于递归复制整个目录，保持文件权限和目录结构
-//
-// 参数:
-//   - src: 源目录路径
-//   - dst: 目标目录路径
-//
-// 返回:
-//   - error: 复制失败时返回错误，如果目标目录或文件已存在则返回错误
-func CopyDir(src, dst string) error {
-	return copyDirInternal(src, dst, false)
-}
-
-// CopyDirEx 复制目录及其所有内容（可控制是否覆盖）
-// 用于递归复制整个目录，保持文件权限和目录结构
-//
-// 参数:
-//   - src: 源目录路径
-//   - dst: 目标目录路径
-//   - overwrite: 是否允许覆盖已存在的文件，false时如果目标目录或文件存在则返回错误
-//
-// 返回:
-//   - error: 复制失败时返回错误
-func CopyDirEx(src, dst string, overwrite bool) error {
-	return copyDirInternal(src, dst, overwrite)
-}
-
 // Copy 通用复制函数，自动判断源路径类型并调用相应的复制函数
-// 如果源路径是文件则调用 CopyFile，如果是目录则调用 CopyDir
+// 支持复制普通文件、目录、符号链接和特殊文件 (设备文件、命名管道等)
 //
 // 参数:
-//   - src: 源路径（文件或目录）
+//   - src: 源路径 (支持文件、目录、符号链接、特殊文件)
 //   - dst: 目标路径
 //
 // 返回:
@@ -77,11 +23,11 @@ func Copy(src, dst string) error {
 	return CopyEx(src, dst, false)
 }
 
-// CopyEx 通用复制函数（可控制是否覆盖），自动判断源路径类型并调用相应的复制函数
-// 如果源路径是文件则调用 CopyFileEx，如果是目录则调用 CopyDirEx
+// CopyEx 通用复制函数 (可控制是否覆盖)，自动判断源路径类型并调用相应的复制函数
+// 支持复制普通文件、目录、符号链接和特殊文件 (设备文件、命名管道等)
 //
 // 参数:
-//   - src: 源路径（文件或目录）
+//   - src: 源路径 (支持文件、目录、符号链接、特殊文件)
 //   - dst: 目标路径
 //   - overwrite: 是否允许覆盖已存在的目标文件/目录
 //
@@ -96,11 +42,10 @@ func CopyEx(src, dst string, overwrite bool) error {
 
 	// 根据源路径类型调用相应的复制函数
 	if srcInfo.IsDir() {
-		return CopyDirEx(src, dst, overwrite)
-	} else if srcInfo.Mode().IsRegular() {
-		return CopyFileEx(src, dst, overwrite)
+		return copyDirInternal(src, dst, overwrite)
 	} else {
-		return fmt.Errorf("source '%s' is neither a regular file nor a directory", src)
+		// 处理所有文件类型（普通文件、符号链接、特殊文件等）
+		return copyFileRouter(src, dst, srcInfo.Mode(), overwrite)
 	}
 }
 
@@ -231,6 +176,11 @@ func copyFileInternal(src, dst string, overwrite bool) error {
 	}
 	out = nil // 标记为已关闭
 
+	// 如果允许覆盖且目标文件存在，先删除目标文件（确保跨平台兼容性）
+	if overwrite {
+		_ = os.Remove(dst) // 忽略错误，可能文件不存在
+	}
+
 	// 原子重命名
 	if err := os.Rename(tmp, dst); err != nil {
 		return fmt.Errorf("failed to rename temporary file '%s' to '%s': %w", tmp, dst, err)
@@ -238,6 +188,123 @@ func copyFileInternal(src, dst string, overwrite bool) error {
 
 	success = true
 	return nil
+}
+
+// copySymlink 复制符号链接
+// 读取源符号链接的目标，然后在目标位置创建相同的符号链接
+//
+// 参数:
+//   - src: 源符号链接路径
+//   - dst: 目标符号链接路径
+//   - overwrite: 是否允许覆盖已存在的目标
+//
+// 返回:
+//   - error: 复制失败时返回错误
+func copySymlink(src, dst string, overwrite bool) error {
+	// 检查目标是否存在
+	if !overwrite {
+		if _, err := os.Lstat(dst); err == nil {
+			return fmt.Errorf("destination symlink '%s' already exists", dst)
+		}
+	}
+
+	// 读取符号链接的目标
+	target, err := os.Readlink(src)
+	if err != nil {
+		return fmt.Errorf("failed to read symlink '%s': %w", src, err)
+	}
+
+	// 确保目标目录存在
+	dstDir := filepath.Dir(dst)
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create destination directory '%s': %w", dstDir, err)
+	}
+
+	// 如果目标存在且允许覆盖，先删除
+	if overwrite {
+		_ = os.Remove(dst) // 忽略错误，可能不存在
+	}
+
+	// 创建符号链接
+	if err := os.Symlink(target, dst); err != nil {
+		return fmt.Errorf("failed to create symlink '%s' -> '%s': %w", dst, target, err)
+	}
+
+	return nil
+}
+
+// copySpecialFile 复制特殊文件（设备文件、命名管道、套接字等）
+// 对于特殊文件，只创建一个具有相同权限模式的空文件
+//
+// 参数:
+//   - src: 源特殊文件路径
+//   - dst: 目标文件路径
+//   - overwrite: 是否允许覆盖已存在的目标
+//
+// 返回:
+//   - error: 复制失败时返回错误
+func copySpecialFile(src, dst string, overwrite bool) error {
+	// 检查目标是否存在
+	if !overwrite {
+		if _, err := os.Stat(dst); err == nil {
+			return fmt.Errorf("destination file '%s' already exists", dst)
+		}
+	}
+
+	// 获取源文件信息
+	srcInfo, err := os.Lstat(src)
+	if err != nil {
+		return fmt.Errorf("failed to get source file info '%s': %w", src, err)
+	}
+
+	// 确保目标目录存在
+	dstDir := filepath.Dir(dst)
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create destination directory '%s': %w", dstDir, err)
+	}
+
+	// 如果目标存在且允许覆盖，先删除
+	if overwrite {
+		_ = os.Remove(dst) // 忽略错误，可能不存在
+	}
+
+	// 创建一个空文件，保持相同的权限模式
+	file, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY, srcInfo.Mode())
+	if err != nil {
+		return fmt.Errorf("failed to create special file '%s': %w", dst, err)
+	}
+
+	// 立即关闭文件
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close special file '%s': %w", dst, err)
+	}
+
+	return nil
+}
+
+// copyFileRouter 文件复制路由函数
+// 根据文件类型调用相应的复制函数
+//
+// 参数:
+//   - src: 源文件路径
+//   - dst: 目标文件路径
+//   - fileType: 文件类型（从 os.DirEntry.Type() 获取）
+//   - overwrite: 是否允许覆盖已存在的目标
+//
+// 返回:
+//   - error: 复制失败时返回错误
+func copyFileRouter(src, dst string, fileType os.FileMode, overwrite bool) error {
+	switch {
+	case fileType.IsRegular():
+		// 普通文件
+		return copyFileInternal(src, dst, overwrite)
+	case fileType&os.ModeSymlink != 0:
+		// 符号链接
+		return copySymlink(src, dst, overwrite)
+	default:
+		// 其他特殊文件（设备文件、命名管道、套接字等）
+		return copySpecialFile(src, dst, overwrite)
+	}
 }
 
 // copyDirInternal 内部复制目录逻辑
@@ -271,6 +338,11 @@ func copyDirInternal(src, dst string, overwrite bool) error {
 	if !overwrite {
 		if _, err := os.Stat(dst); err == nil {
 			return fmt.Errorf("destination directory '%s' already exists", dst)
+		}
+	} else {
+		// 如果允许覆盖且目标目录存在，先删除整个目录
+		if err := os.RemoveAll(dst); err != nil {
+			return fmt.Errorf("failed to remove existing destination directory '%s': %w", dst, err)
 		}
 	}
 
@@ -311,12 +383,7 @@ func copyDirInternal(src, dst string, overwrite bool) error {
 			return nil
 		}
 
-		// 处理普通文件
-		if entry.Type().IsRegular() {
-			return copyFileInternal(path, dstPath, overwrite)
-		}
-
-		// 跳过其他类型的文件（符号链接、设备文件等）
-		return nil
+		// 处理所有文件类型（普通文件、符号链接、特殊文件等）
+		return copyFileRouter(path, dstPath, entry.Type(), overwrite)
 	})
 }
