@@ -33,20 +33,29 @@ func Copy(src, dst string) error {
 //
 // 返回:
 //   - error: 复制失败时返回错误
-func CopyEx(src, dst string, overwrite bool) error {
-	// 获取源路径信息
-	srcInfo, err := os.Stat(src)
-	if err != nil {
-		return fmt.Errorf("failed to get source info '%s': %w", src, err)
+func CopyEx(src, dst string, overwrite bool) (err error) {
+	// 捕获 panic 并转换为错误
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("copy operation panicked: %v", r)
+		}
+	}()
+
+	// 获取源路径信息（使用 Lstat 避免跟随符号链接）
+	srcInfo, localErr := os.Lstat(src)
+	if localErr != nil {
+		err = fmt.Errorf("failed to get source info '%s': %w", src, localErr)
+		return
 	}
 
 	// 根据源路径类型调用相应的复制函数
 	if srcInfo.IsDir() {
-		return copyDir(src, dst, overwrite)
+		err = copyDir(src, dst, overwrite)
 	} else {
 		// 处理所有文件类型（普通文件、符号链接、特殊文件等）
-		return copyFileRouter(src, dst, srcInfo.Mode(), overwrite)
+		err = copyFileRouter(src, dst, srcInfo.Mode(), overwrite)
 	}
+	return
 }
 
 // validateCopyPaths 验证复制操作的源路径和目标路径
@@ -88,6 +97,60 @@ func validateCopyPaths(src, dst string, checkSubdir bool) error {
 	return nil
 }
 
+// handleBackupAndRestore 统一的备份恢复处理函数
+// 用于在覆盖操作前创建备份，失败时恢复备份
+//
+// 参数:
+//   - dst: 目标路径
+//   - overwrite: 是否允许覆盖
+//
+// 返回:
+//   - backupPath: 备份文件路径（如果创建了备份）
+//   - error: 处理失败时返回错误
+func handleBackupAndRestore(dst string, overwrite bool) (string, error) {
+	// 检查目标是否存在
+	if _, err := os.Lstat(dst); err != nil {
+		// 目标不存在，无需备份
+		return "", nil
+	}
+
+	// 目标存在
+	if !overwrite {
+		return "", fmt.Errorf("destination '%s' already exists", dst)
+	}
+
+	// 允许覆盖，创建备份
+	backupPath := dst + ".backup." + fmt.Sprintf("%d", os.Getpid())
+	if err := os.Rename(dst, backupPath); err != nil {
+		return "", fmt.Errorf("failed to backup existing '%s': %w", dst, err)
+	}
+
+	return backupPath, nil
+}
+
+// restoreBackup 恢复备份文件
+// 在操作失败时调用，尽力恢复原始文件
+//
+// 参数:
+//   - dst: 目标路径
+//   - backupPath: 备份文件路径
+func restoreBackup(dst, backupPath string) {
+	if backupPath != "" {
+		_ = os.Rename(backupPath, dst) // 忽略恢复错误，尽力而为
+	}
+}
+
+// cleanupBackup 清理备份文件/目录
+// 在操作成功时调用，删除不再需要的备份
+//
+// 参数:
+//   - backupPath: 备份文件或目录路径
+func cleanupBackup(backupPath string) {
+	if backupPath != "" {
+		_ = os.RemoveAll(backupPath) // 忽略删除错误，支持文件和目录
+	}
+}
+
 // copyFile 内部复制文件逻辑
 // 用于安全地复制文件，保持原文件的权限信息，失败时自动清理
 //
@@ -105,17 +168,9 @@ func copyFile(src, dst string, overwrite bool) error {
 	}
 
 	// 安全覆盖机制：处理已存在的目标文件
-	var backupPath string
-	if _, err := os.Stat(dst); err == nil {
-		// 目标文件存在
-		if !overwrite {
-			return fmt.Errorf("destination file '%s' already exists", dst)
-		}
-		// 允许覆盖，先重命名为备份
-		backupPath = dst + ".backup." + fmt.Sprintf("%d", os.Getpid())
-		if err := os.Rename(dst, backupPath); err != nil {
-			return fmt.Errorf("failed to backup existing file '%s': %w", dst, err)
-		}
+	backupPath, err := handleBackupAndRestore(dst, overwrite)
+	if err != nil {
+		return err
 	}
 
 	// 打开源文件
@@ -191,16 +246,12 @@ func copyFile(src, dst string, overwrite bool) error {
 	// 原子重命名
 	if err := os.Rename(tmp, dst); err != nil {
 		// 复制失败，恢复备份文件
-		if backupPath != "" {
-			_ = os.Rename(backupPath, dst) // 尽力恢复
-		}
+		restoreBackup(dst, backupPath)
 		return fmt.Errorf("failed to rename temporary file '%s' to '%s': %w", tmp, dst, err)
 	}
 
 	// 复制成功，删除备份文件
-	if backupPath != "" {
-		_ = os.Remove(backupPath) // 忽略删除备份的错误
-	}
+	cleanupBackup(backupPath)
 
 	success = true
 	return nil
@@ -218,53 +269,33 @@ func copyFile(src, dst string, overwrite bool) error {
 //   - error: 复制失败时返回错误
 func copySymlink(src, dst string, overwrite bool) error {
 	// 安全覆盖机制：处理已存在的目标符号链接
-	var backupPath string
-	if _, err := os.Lstat(dst); err == nil {
-		// 目标符号链接存在
-		if !overwrite {
-			return fmt.Errorf("destination symlink '%s' already exists", dst)
-		}
-		// 允许覆盖，先重命名为备份
-		backupPath = dst + ".backup." + fmt.Sprintf("%d", os.Getpid())
-		if err := os.Rename(dst, backupPath); err != nil {
-			return fmt.Errorf("failed to backup existing symlink '%s': %w", dst, err)
-		}
+	backupPath, err := handleBackupAndRestore(dst, overwrite)
+	if err != nil {
+		return err
 	}
 
 	// 读取符号链接的目标
 	target, err := os.Readlink(src)
 	if err != nil {
-		// 恢复备份
-		if backupPath != "" {
-			_ = os.Rename(backupPath, dst)
-		}
+		restoreBackup(dst, backupPath)
 		return fmt.Errorf("failed to read symlink '%s': %w", src, err)
 	}
 
 	// 确保目标目录存在
 	dstDir := filepath.Dir(dst)
 	if err := os.MkdirAll(dstDir, 0o755); err != nil {
-		// 恢复备份
-		if backupPath != "" {
-			_ = os.Rename(backupPath, dst)
-		}
+		restoreBackup(dst, backupPath)
 		return fmt.Errorf("failed to create destination directory '%s': %w", dstDir, err)
 	}
 
 	// 创建符号链接
 	if err := os.Symlink(target, dst); err != nil {
-		// 创建失败，恢复备份
-		if backupPath != "" {
-			_ = os.Rename(backupPath, dst)
-		}
+		restoreBackup(dst, backupPath)
 		return fmt.Errorf("failed to create symlink '%s' -> '%s': %w", dst, target, err)
 	}
 
 	// 创建成功，删除备份
-	if backupPath != "" {
-		_ = os.Remove(backupPath)
-	}
-
+	cleanupBackup(backupPath)
 	return nil
 }
 
@@ -280,46 +311,29 @@ func copySymlink(src, dst string, overwrite bool) error {
 //   - error: 复制失败时返回错误
 func copySpecialFile(src, dst string, overwrite bool) error {
 	// 安全覆盖机制：处理已存在的目标文件
-	var backupPath string
-	if _, err := os.Stat(dst); err == nil {
-		// 目标文件存在
-		if !overwrite {
-			return fmt.Errorf("destination file '%s' already exists", dst)
-		}
-		// 允许覆盖，先重命名为备份
-		backupPath = dst + ".backup." + fmt.Sprintf("%d", os.Getpid())
-		if err := os.Rename(dst, backupPath); err != nil {
-			return fmt.Errorf("failed to backup existing file '%s': %w", dst, err)
-		}
+	backupPath, err := handleBackupAndRestore(dst, overwrite)
+	if err != nil {
+		return err
 	}
 
 	// 获取源文件信息
 	srcInfo, err := os.Lstat(src)
 	if err != nil {
-		// 恢复备份
-		if backupPath != "" {
-			_ = os.Rename(backupPath, dst)
-		}
+		restoreBackup(dst, backupPath)
 		return fmt.Errorf("failed to get source file info '%s': %w", src, err)
 	}
 
 	// 确保目标目录存在
 	dstDir := filepath.Dir(dst)
 	if err := os.MkdirAll(dstDir, 0o755); err != nil {
-		// 恢复备份
-		if backupPath != "" {
-			_ = os.Rename(backupPath, dst)
-		}
+		restoreBackup(dst, backupPath)
 		return fmt.Errorf("failed to create destination directory '%s': %w", dstDir, err)
 	}
 
 	// 创建一个空文件，保持相同的权限模式
 	file, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY, srcInfo.Mode())
 	if err != nil {
-		// 创建失败，恢复备份
-		if backupPath != "" {
-			_ = os.Rename(backupPath, dst)
-		}
+		restoreBackup(dst, backupPath)
 		return fmt.Errorf("failed to create special file '%s': %w", dst, err)
 	}
 
@@ -327,17 +341,12 @@ func copySpecialFile(src, dst string, overwrite bool) error {
 	if err := file.Close(); err != nil {
 		// 关闭失败，删除创建的文件并恢复备份
 		_ = os.Remove(dst)
-		if backupPath != "" {
-			_ = os.Rename(backupPath, dst)
-		}
+		restoreBackup(dst, backupPath)
 		return fmt.Errorf("failed to close special file '%s': %w", dst, err)
 	}
 
 	// 创建成功，删除备份
-	if backupPath != "" {
-		_ = os.Remove(backupPath)
-	}
-
+	cleanupBackup(backupPath)
 	return nil
 }
 
@@ -396,21 +405,19 @@ func copyDir(src, dst string, overwrite bool) error {
 	}
 
 	// 安全覆盖机制：处理已存在的目标目录
-	var backupPath string
-	if _, err := os.Stat(dst); err == nil {
-		// 目标目录存在
-		if !overwrite {
-			return fmt.Errorf("destination directory '%s' already exists", dst)
-		}
-		// 允许覆盖，先重命名为备份
-		backupPath = dst + ".backup." + fmt.Sprintf("%d", os.Getpid())
-		if err := os.Rename(dst, backupPath); err != nil {
-			return fmt.Errorf("failed to backup existing directory '%s': %w", dst, err)
-		}
+	backupPath, err := handleBackupAndRestore(dst, overwrite)
+	if err != nil {
+		return err
 	}
 
-	// 创建目标目录
-	if err := os.MkdirAll(dst, srcInfo.Mode()); err != nil {
+	// 创建目标目录，使用合适的权限（至少需要写权限以便后续操作）
+	dirMode := srcInfo.Mode()
+	if dirMode&0o200 == 0 {
+		// 如果源目录没有写权限，临时添加写权限以便复制操作
+		dirMode |= 0o200
+	}
+	if err := os.MkdirAll(dst, dirMode); err != nil {
+		restoreBackup(dst, backupPath)
 		return fmt.Errorf("failed to create destination directory '%s': %w", dst, err)
 	}
 
@@ -454,16 +461,16 @@ func copyDir(src, dst string, overwrite bool) error {
 	if copyErr != nil {
 		// 复制失败，清理已复制的内容并恢复备份
 		_ = os.RemoveAll(dst) // 清理部分复制的内容
-		if backupPath != "" {
-			_ = os.Rename(backupPath, dst) // 尽力恢复备份
-		}
+		restoreBackup(dst, backupPath)
 		return copyErr
 	}
 
-	// 复制成功，删除备份目录
-	if backupPath != "" {
-		_ = os.RemoveAll(backupPath) // 忽略删除备份的错误
+	// 复制成功，恢复目录的原始权限（如果之前临时修改了权限）
+	if srcInfo.Mode() != dirMode {
+		_ = os.Chmod(dst, srcInfo.Mode()) // 忽略权限恢复错误
 	}
 
+	// 复制成功，删除备份目录
+	cleanupBackup(backupPath)
 	return nil
 }
