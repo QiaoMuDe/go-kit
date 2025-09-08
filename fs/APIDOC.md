@@ -22,64 +22,48 @@ Collect 收集指定路径下的所有文件 用于收集文件或目录中的�
 - `[]string`: 收集到的文件路径切片
 - `error`: 收集失败时返回错误
 
-### func CopyDir
+### func Copy
 
 ```go
-func CopyDir(src, dst string) error
+func Copy(src, dst string) error
 ```
 
-CopyDir 复制目录及其所有内容（默认覆盖已存在的文件） 用于递归复制整个目录，保持文件权限和目录结构
+Copy 通用复制函数，自动判断源路径类型并调用相应的复制函数。支持复制普通文件、目录、符号链接和特殊文件（设备文件、命名管道等）。默认不覆盖已存在的目标文件/目录。
+
+**特性:**
+- 自动识别文件类型（普通文件、目录、符号链接、特殊文件）
+- 保持文件权限和目录结构
+- 安全的备份恢复机制，失败时自动回滚
+- 对空文件进行性能优化
+- 使用临时文件+原子重命名确保数据安全
 
 **参数:**
-- `src`: 源目录路径
-- `dst`: 目标目录路径
+- `src`: 源路径（支持文件、目录、符号链接、特殊文件）
+- `dst`: 目标路径
 
 **返回:**
-- `error`: 复制失败时返回错误
+- `error`: 复制失败时返回错误，如果目标已存在则返回错误
 
-### func CopyDirWithOverwrite
-
-```go
-func CopyDirWithOverwrite(src, dst string, overwrite bool) error
-```
-
-CopyDirWithOverwrite 复制目录及其所有内容（可控制是否覆盖） 用于递归复制整个目录，保持文件权限和目录结构
-
-**参数:**
-- `src`: 源目录路径
-- `dst`: 目标目录路径
-- `overwrite`: 是否允许覆盖已存在的文件，false时如果目标目录或文件存在则返回错误
-
-**返回:**
-- `error`: 复制失败时返回错误
-
-### func CopyFile
+### func CopyEx
 
 ```go
-func CopyFile(src, dst string) error
+func CopyEx(src, dst string, overwrite bool) error
 ```
 
-CopyFile 复制文件并继承权限（默认覆盖已存在的目标文件） 用于安全地复制文件，保持原文件的权限信息，失败时自动清理
+CopyEx 通用复制函数（可控制是否覆盖），自动判断源路径类型并调用相应的复制函数。支持复制普通文件、目录、符号链接和特殊文件（设备文件、命名管道等）。
+
+**特性:**
+- 自动识别文件类型（普通文件、目录、符号链接、特殊文件）
+- 保持文件权限和目录结构
+- 安全的备份恢复机制，失败时自动回滚
+- 对空文件进行性能优化
+- 使用临时文件+原子重命名确保数据安全
+- 可控制覆盖行为
 
 **参数:**
-- `src`: 源文件路径
-- `dst`: 目标文件路径
-
-**返回:**
-- `error`: 复制失败时返回错误
-
-### func CopyFileWithOverwrite
-
-```go
-func CopyFileWithOverwrite(src, dst string, overwrite bool) error
-```
-
-CopyFileWithOverwrite 复制文件并继承权限（可控制是否覆盖） 用于安全地复制文件，保持原文件的权限信息，失败时自动清理
-
-**参数:**
-- `src`: 源文件路径
-- `dst`: 目标文件路径
-- `overwrite`: 是否允许覆盖已存在的目标文件，false时如果目标文件存在则返回错误
+- `src`: 源路径（支持文件、目录、符号链接、特殊文件）
+- `dst`: 目标路径
+- `overwrite`: 是否允许覆盖已存在的目标文件/目录
 
 **返回:**
 - `error`: 复制失败时返回错误
