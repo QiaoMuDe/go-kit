@@ -142,7 +142,7 @@ func TestCopyFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			src, dst := tt.setup()
 
-			err := CopyFile(src, dst)
+			err := Copy(src, dst)
 
 			if tt.expectError {
 				if err == nil {
@@ -306,7 +306,7 @@ func TestCopyDir(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			src, dst := tt.setup()
 
-			err := CopyDir(src, dst)
+			err := Copy(src, dst)
 
 			if tt.expectError {
 				if err == nil {
@@ -394,7 +394,7 @@ func TestCopyBoundaryConditions(t *testing.T) {
 		{
 			name: "空路径参数",
 			test: func(t *testing.T) {
-				err := CopyFile("", "")
+				err := Copy("", "")
 				if err == nil {
 					t.Error("空路径参数应该返回错误")
 				}
@@ -409,7 +409,7 @@ func TestCopyBoundaryConditions(t *testing.T) {
 					t.Fatalf("创建测试文件失败: %v", err)
 				}
 
-				err := CopyFile(file, file)
+				err := Copy(file, file)
 				// 这种情况的行为取决于具体实现
 				t.Logf("相同路径复制结果: %v", err)
 			},
@@ -437,7 +437,7 @@ func TestCopyBoundaryConditions(t *testing.T) {
 				}
 
 				dst := filepath.Join(readOnlyDir, "destination.txt")
-				err := CopyFile(src, dst)
+				err := Copy(src, dst)
 
 				// 恢复目录权限以便清理
 				_ = os.Chmod(readOnlyDir, 0755)
@@ -492,7 +492,7 @@ func BenchmarkCopyFile(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				dst := filepath.Join(tempDir, fmt.Sprintf("bench_dst_%s_%d.txt", size.name, i))
-				if err := CopyFile(src, dst); err != nil {
+				if err := Copy(src, dst); err != nil {
 					b.Fatalf("复制文件失败: %v", err)
 				}
 				// 清理目标文件
@@ -520,7 +520,7 @@ func TestCopyConcurrency(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func(id int) {
 			dst := filepath.Join(tempDir, fmt.Sprintf("concurrent_dst_%d.txt", id))
-			err := CopyFile(src, dst)
+			err := Copy(src, dst)
 			done <- err
 		}(i)
 	}
@@ -566,7 +566,7 @@ func TestCopyIntegrity(t *testing.T) {
 	}
 
 	// 复制文件
-	if err := CopyFile(src, dst); err != nil {
+	if err := Copy(src, dst); err != nil {
 		t.Fatalf("复制文件失败: %v", err)
 	}
 
@@ -621,7 +621,7 @@ func TestCopyPreservesTimestamp(t *testing.T) {
 	}
 
 	// 复制文件
-	if err := CopyFile(src, dst); err != nil {
+	if err := Copy(src, dst); err != nil {
 		t.Fatalf("复制文件失败: %v", err)
 	}
 

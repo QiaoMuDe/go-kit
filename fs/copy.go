@@ -162,19 +162,24 @@ func copyFile(src, dst string, overwrite bool) error {
 		}
 	}()
 
-	// 根据文件大小计算最佳缓冲区
-	bufSize := pool.CalculateBufferSize(fi.Size())
-	buf := pool.GetByteCap(bufSize)
-	defer pool.PutByte(buf)
+	// 根据文件大小选择处理方式
+	if fi.Size() == 0 {
+		// 空文件：跳过数据复制，直接进行后续操作
+	} else {
+		// 非空文件：使用缓冲区进行数据拷贝
+		bufSize := pool.CalculateBufferSize(fi.Size())
+		buf := pool.GetByteCap(bufSize)
+		defer pool.PutByte(buf)
 
-	// 使用缓冲区进行数据拷贝
-	if _, err := io.CopyBuffer(out, in, buf); err != nil {
-		return fmt.Errorf("failed to copy data from '%s' to '%s': %w", src, tmp, err)
-	}
+		if _, err := io.CopyBuffer(out, in, buf); err != nil {
+			return fmt.Errorf("failed to copy data from '%s' to '%s': %w", src, tmp, err)
+		}
 
-	// 强制刷盘，确保数据持久化
-	if err := out.Sync(); err != nil {
-		return fmt.Errorf("failed to sync temporary file '%s': %w", tmp, err)
+		// 强制刷盘，确保数据持久化（仅对非空文件）
+		if err := out.Sync(); err != nil {
+			return fmt.Errorf("failed to sync temporary file '%s': %w", tmp, err)
+		}
+
 	}
 
 	// 在重命名前关闭文件句柄(Windows要求)
@@ -352,9 +357,11 @@ func copyFileRouter(src, dst string, fileType os.FileMode, overwrite bool) error
 	case fileType.IsRegular():
 		// 普通文件
 		return copyFile(src, dst, overwrite)
+
 	case fileType&os.ModeSymlink != 0:
 		// 符号链接
 		return copySymlink(src, dst, overwrite)
+
 	default:
 		// 其他特殊文件（设备文件、命名管道、套接字等）
 		return copySpecialFile(src, dst, overwrite)
