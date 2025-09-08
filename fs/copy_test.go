@@ -116,7 +116,7 @@ func TestCopyFile(t *testing.T) {
 			desc:        "目标目录不存在时应该自动创建",
 		},
 		{
-			name: "覆盖已存在的文件",
+			name: "目标文件已存在时应该失败",
 			setup: func() (string, string) {
 				src := filepath.Join(tempDir, "overwrite_source.txt")
 				dst := filepath.Join(tempDir, "overwrite_destination.txt")
@@ -126,15 +126,15 @@ func TestCopyFile(t *testing.T) {
 					t.Fatalf("创建源文件失败: %v", err)
 				}
 
-				// 创建目标文件（将被覆盖）
+				// 创建目标文件（已存在）
 				if err := os.WriteFile(dst, []byte("old content"), 0644); err != nil {
 					t.Fatalf("创建目标文件失败: %v", err)
 				}
 
 				return src, dst
 			},
-			expectError: false,
-			desc:        "覆盖已存在的文件应该成功",
+			expectError: true,
+			desc:        "目标文件已存在时应该返回错误",
 		},
 	}
 
@@ -146,13 +146,13 @@ func TestCopyFile(t *testing.T) {
 
 			if tt.expectError {
 				if err == nil {
-					t.Errorf("CopyFile(%q, %q) 期望返回错误，但没有错误 - %s", src, dst, tt.desc)
+					t.Errorf("Copy(%q, %q) 期望返回错误，但没有错误 - %s", src, dst, tt.desc)
 				}
 				return
 			}
 
 			if err != nil {
-				t.Errorf("CopyFile(%q, %q) 返回意外错误: %v - %s", src, dst, err, tt.desc)
+				t.Errorf("Copy(%q, %q) 返回意外错误: %v - %s", src, dst, err, tt.desc)
 				return
 			}
 
@@ -310,13 +310,13 @@ func TestCopyDir(t *testing.T) {
 
 			if tt.expectError {
 				if err == nil {
-					t.Errorf("CopyDir(%q, %q) 期望返回错误，但没有错误 - %s", src, dst, tt.desc)
+					t.Errorf("Copy(%q, %q) 期望返回错误，但没有错误 - %s", src, dst, tt.desc)
 				}
 				return
 			}
 
 			if err != nil {
-				t.Errorf("CopyDir(%q, %q) 返回意外错误: %v - %s", src, dst, err, tt.desc)
+				t.Errorf("Copy(%q, %q) 返回意外错误: %v - %s", src, dst, err, tt.desc)
 				return
 			}
 
