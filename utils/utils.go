@@ -1,83 +1,8 @@
 package utils
 
 import (
-	"context"
-	"fmt"
-	"os/exec"
 	"strconv"
-	"time"
 )
-
-// ExecuteCmd 执行指定的系统命令，并可设置独立的环境变量。
-// 此函数会等待命令执行完成，不设置超时。
-//
-// 参数:
-//   - args: 命令行参数切片，其中 args[0] 为要执行的命令本身（如 "ls", "go"），
-//     后续元素为命令的参数（如 "-l", "main.go"）。
-//   - env: 一个完整的环境变量切片，形如 "KEY=VALUE"。
-//     如果传入 nil 或空切片，则命令将继承当前进程的环境变量。
-//     如果传入非空切片，则命令的环境变量将仅限于此切片中定义的内容，
-//     不会继承当前进程的任何环境变量。
-//
-// 返回:
-//   - []byte: 命令的标准输出和标准错误合并后的内容。
-//   - error: 如果命令执行失败（如命令不存在、权限问题、命令返回非零退出码），
-//     或在执行过程中发生其他错误，则返回相应的错误信息。
-func ExecuteCmd(args []string, env []string) ([]byte, error) {
-	if len(args) == 0 {
-		return nil, fmt.Errorf("empty command")
-	}
-	cmd := exec.Command(args[0], args[1:]...)
-	if len(env) > 0 {
-		cmd.Env = env // 直接覆盖，不再继承系统环境
-	}
-	return cmd.CombinedOutput()
-}
-
-// ExecuteCmdWithTimeout 执行指定的系统命令，并设置超时时间及独立的环境变量。
-// 此函数会等待命令执行完成，支持设置超时时间。
-//
-// 参数:
-//   - timeout: 命令允许执行的最长时间。如果命令在此时间内未完成，将被终止并返回超时错误。
-//     如果 timeout 为 0，则表示不设置超时。
-//   - args: 命令行参数切片，其中 args[0] 为要执行的命令本身。
-//   - env: 一个完整的环境变量切片，形如 "KEY=VALUE"。
-//     如果传入 nil 或空切片，则命令将继承当前进程的环境变量。
-//     如果传入非空切片，则命令的环境变量将仅限于此切片中定义的内容。
-//
-// 返回:
-//   - []byte: 命令的标准输出和标准错误合并后的内容。
-//   - error: 如果命令执行失败、超时，或在执行过程中发生其他错误，则返回相应的错误信息。
-func ExecuteCmdWithTimeout(timeout time.Duration, args []string, env []string) ([]byte, error) {
-	if len(args) == 0 {
-		return nil, fmt.Errorf("empty command")
-	}
-
-	// 创建超时上下文
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	// 创建命令
-	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
-
-	// 设置命令的额外环境变量
-	if len(env) > 0 {
-		cmd.Env = env // 直接覆盖，不再继承系统环境
-	}
-
-	// 执行命令并返回结果
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// 检查是否为超时错误
-		if ctx.Err() == context.DeadlineExceeded {
-			return output, fmt.Errorf("命令超时 (超过 %v)", timeout)
-		}
-		// 其他错误类型
-		return output, fmt.Errorf("执行命令失败: %v 错误: %v", args, err)
-	}
-
-	return output, nil
-}
 
 const (
 	// 使用位运算常量，1024 = 1 << 10
