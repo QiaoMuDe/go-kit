@@ -25,7 +25,6 @@ Go-Kit 是一个精心设计的Go语言工具包，集成了开发过程中常�
 - 🆔 **ID生成器** - 提供UUID、雪花算法等ID生成方案
 - 🏊 **对象池** - 高性能的对象池实现，优化内存使用
 - 📝 **字符串工具** - 丰富的字符串处理和操作函数
-- 🧪 **测试工具** - 简化单元测试的实用工具
 - 🔧 **通用工具** - 其他常用的辅助函数和工具
 
 ## 🚀 快速开始
@@ -49,7 +48,6 @@ go get gitee.com/MM-Q/go-kit
 | `id` | ID生成器 | UUID、雪花算法、随机ID |
 | `pool` | 对象池 | 高性能对象复用池 |
 | `str` | 字符串工具 | 字符串转换、格式化、验证 |
-| `testutils` | 测试工具 | 测试辅助函数、Mock工具 |
 | `utils` | 通用工具 | 其他实用函数 |
 
 ## 📁 项目结构
@@ -71,12 +69,12 @@ go-kit/
 ├── str/               # 字符串工具
 │   ├── str.go         # 字符串处理
 │   └── str_test.go    # 单元测试
-├── testutils/         # 测试工具
-│   ├── testutils.go   # 测试辅助
-│   └── testutils_test.go
 ├── utils/             # 通用工具
 │   ├── utils.go       # 实用函数
-│   └── utils_test.go  # 单元测试
+│   ├── utils_test.go  # 单元测试
+│   ├── json.go        # JSON 工具
+│   └── json_test.go   # 单元测试
+│     
 ├── go.mod             # Go模块文件
 ├── go.sum             # 依赖校验文件
 ├── LICENSE            # 许可证文件

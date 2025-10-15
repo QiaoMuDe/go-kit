@@ -14,7 +14,7 @@ func needsEsc(c byte) bool {
 	return c < 0x20 || c == '"' || c == '\\'
 }
 
-// EscapeJSONBytes 将输入字节切片转义为合法 JSON 字符串字面量。
+// QuoteBytes 将输入字节切片转义为合法 JSON 字符串字面量。
 //
 // 转义规则：
 //  1. 7 个缩写控制字符 => \" \\ \b \f \n \r \t
@@ -26,7 +26,7 @@ func needsEsc(c byte) bool {
 //
 // 返回：
 //   - 转义后的 JSON 字节串
-func EscapeJSONBytes(raw []byte) []byte {
+func QuoteBytes(raw []byte) []byte {
 	// 1. 先统计需转义字符数量，同时算最大可能长度
 	var cnt int
 	for _, c := range raw {
@@ -69,18 +69,23 @@ func EscapeJSONBytes(raw []byte) []byte {
 	return out
 }
 
-// EscapeJSON 将输入字符串转义为合法 JSON 字符串字面量
+// QuoteString 将输入字符串转义为合法 JSON 字符串字面量
+//
+// 转义规则：
+//  1. 7 个缩写控制字符 => \" \\ \b \f \n \r \t
+//  2. 其余 0x00–0x1F 统一写成 \u00XX
+//  3. 无转义时直接原串返回，零额外分配
 //
 // 参数：
 //   - raw: 待转义的原始字符串
 //
 // 返回：
 //   - 转义后的 JSON 字符串
-func EscapeJSON(raw string) string {
+func QuoteString(raw string) string {
 	if raw == "" {
 		return ""
 	}
 
 	// 复用 []byte 路径，安全但多一次拷贝
-	return string(EscapeJSONBytes([]byte(raw)))
+	return string(QuoteBytes([]byte(raw)))
 }
