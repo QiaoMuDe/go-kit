@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -93,10 +94,11 @@ func ParseHostsFile(filePath string) ([]HostConfig, error) {
 // 参数：
 //   - host: 主机信息结构体，包含连接信息（主机地址、端口、用户名、密码）
 //   - cmd: 要执行的命令字符串
+//   - timeout: 连接超时时间（零值表示不设置超时）
 //
 // 返回：
 //   - RemoteExecResult: 命令执行结果结构体
-func ExecRemoteCmd(host HostConfig, cmd string) RemoteExecResult {
+func ExecRemoteCmd(host HostConfig, cmd string, timeout time.Duration) RemoteExecResult {
 	// 1. 校验入参合法性
 	if err := validateHostConfig(host); err != nil {
 		return RemoteExecResult{
@@ -121,7 +123,7 @@ func ExecRemoteCmd(host HostConfig, cmd string) RemoteExecResult {
 		},
 		// 生产环境需替换为 ssh.FixedHostKey(hostKey) 进行主机密钥校验
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		// 超时时间（可选），需要导入 "time" 包：Timeout: time.Second * 30
+		Timeout:         timeout, // TCP连接超时时间
 	}
 
 	// 3. 建立SSH连接
@@ -163,6 +165,7 @@ func ExecRemoteCmd(host HostConfig, cmd string) RemoteExecResult {
 
 	// 5. 执行远程命令并获取输出
 	output, err := session.CombinedOutput(cmd)
+
 	if err != nil {
 		return RemoteExecResult{
 			Success: false,
@@ -199,113 +202,5 @@ func validateHostConfig(host HostConfig) error {
 	if strings.TrimSpace(host.Password) == "" {
 		return errors.New("登录密码不能为空")
 	}
-	return nil
-}
-
-// ExecOnAllHosts 在指定主机配置文件中的所有主机上执行命令
-//
-// 参数：
-//   - hostsFilePath: 主机配置文件路径
-//   - cmd: 要执行的命令字符串
-//   - description: 操作描述（用于日志输出）
-//   - processFunc: 处理单个主机结果的回调函数
-//     参数: hostLabel 主机标签, output 命令输出
-//
-// 处理函数签名：func(hostLabel string, output string)
-func ExecOnAllHosts(hostsFilePath, cmd, description string, processFunc func(hostLabel, output string)) {
-	// 解析主机清单
-	hosts, err := ParseHostsFile(hostsFilePath)
-	if err != nil {
-		fmt.Printf("解析主机清单失败: %v\n", err)
-		return
-	}
-
-	if len(hosts) == 0 {
-		fmt.Printf("主机清单为空，没有服务器需要%s\n", description)
-		return
-	}
-
-	fmt.Printf("%s, 共 %d 台服务器...\n", description, len(hosts))
-
-	// 遍历所有主机，执行命令
-	successCount := 0
-	for i, host := range hosts {
-		hostLabel := fmt.Sprintf("服务器[%d] %s:%d", i+1, host.Host, host.Port)
-
-		// 执行命令
-		result := ExecRemoteCmd(host, cmd)
-
-		if result.Success {
-			// 调用处理函数处理成功的结果
-			output := strings.TrimSpace(result.Output)
-			processFunc(hostLabel, output)
-			successCount++
-		} else {
-			fmt.Printf("%-25s 执行失败: %v\n", hostLabel, result.Err)
-			if result.Output != "" {
-				fmt.Printf(" 输出: %s\n", result.Output)
-			}
-		}
-	}
-
-	// 输出统计信息
-	fmt.Println()
-	fmt.Printf("%s完成: 成功 %d/%d 台服务器\n", description, successCount, len(hosts))
-}
-
-// ExecCmdOnHosts 在指定主机文件路径中的所有主机上执行命令
-//
-// 参数：
-//   - hostsFilePath: 主机配置文件路径
-//   - cmd: 要执行的命令字符串
-//   - description: 操作描述（用于日志输出）
-//   - verbose: 是否打印详细输出到终端
-//
-// 返回：
-//   - error: 如果解析主机文件失败，返回错误
-func ExecCmdOnHosts(hostsFilePath, cmd, description string, verbose bool) error {
-	// 解析主机清单
-	hosts, err := ParseHostsFile(hostsFilePath)
-	if err != nil {
-		return fmt.Errorf("解析主机清单失败: %w", err)
-	}
-
-	if len(hosts) == 0 {
-		fmt.Printf("主机清单为空，没有服务器需要%s\n", description)
-		return nil
-	}
-
-	fmt.Printf("%s, 共 %d 台服务器...\n", description, len(hosts))
-
-	// 遍历所有主机，执行命令
-	successCount := 0
-	for i, host := range hosts {
-		hostLabel := fmt.Sprintf("服务器[%d] %s:%d", i+1, host.Host, host.Port)
-
-		// 执行命令
-		result := ExecRemoteCmd(host, cmd)
-
-		if result.Success {
-			// 打印输出（如果启用详细模式）
-			if verbose {
-				output := strings.TrimSpace(result.Output)
-				fmt.Printf("%-25s 执行成功\n", hostLabel)
-				if output != "" {
-					fmt.Printf(" 输出: %s\n", output)
-				}
-			}
-			successCount++
-		} else {
-			fmt.Printf("%-25s 执行失败: %v\n", hostLabel, result.Err)
-			if result.Output != "" {
-				fmt.Printf(" 输出: %s\n", result.Output)
-			}
-		}
-	}
-
-	// 输出统计信息
-	fmt.Println()
-	fmt.Printf("%s完成: 成功 %d/%d 台服务器\n", description, successCount, len(hosts))
-
 	return nil
 }
