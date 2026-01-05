@@ -15,6 +15,8 @@ type RemoteExecResult struct {
 	Success bool   // 执行是否成功
 	Output  string // 命令输出内容（标准输出+标准错误）
 	Err     error  // 执行过程中的错误信息
+	Host    string // 主机地址
+	Port    int    // 端口
 }
 
 // PingResult Ping 结果结构体

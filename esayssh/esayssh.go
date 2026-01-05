@@ -59,49 +59,13 @@ func (e *EasySSH) ReloadHosts() error {
 // 返回：
 //   - RemoteExecResult: 执行结果
 func (e *EasySSH) execOnHost(host HostConfig, cmd string) RemoteExecResult {
-	return ExecRemoteCmd(host, cmd, e.Timeout)
+	result := ExecRemoteCmd(host, cmd, e.Timeout)
+	result.Host = host.Host
+	result.Port = host.Port
+	return result
 }
 
-// execAll 通用执行逻辑（私有方法）
-func (e *EasySSH) execAll(cmd, description string, handleResult func(hostLabel string, result RemoteExecResult)) error {
-	hosts, err := e.LoadHosts()
-	if err != nil {
-		return fmt.Errorf("解析主机清单失败: %w", err)
-	}
-
-	if len(hosts) == 0 {
-		fmt.Printf("==> 跳过 %s: 主机清单为空\n", description)
-		return nil
-	}
-
-	fmt.Printf("==> 开始 %s (共 %d 台主机)...\n", description, len(hosts))
-
-	successCount := 0
-	for i, host := range hosts {
-		hostLabel := fmt.Sprintf("%s:%d", host.Host, host.Port)
-		fmt.Printf("  [%d/%d] %s: ", i+1, len(hosts), hostLabel)
-
-		result := e.execOnHost(host, cmd)
-
-		if result.Success {
-			fmt.Println("✓ ok")
-			if handleResult != nil {
-				handleResult(hostLabel, result)
-			}
-			successCount++
-		} else {
-			fmt.Printf("✗ failed: %v\n", result.Err)
-			if result.Output != "" {
-				fmt.Printf("    %s\n", strings.TrimSpace(result.Output))
-			}
-		}
-	}
-
-	fmt.Printf("==> %s完成: 成功 %d/%d\n\n", description, successCount, len(hosts))
-	return nil
-}
-
-// Exec 在所有主机上执行命令
+// Exec 在所有主机上执行命令并打印结果
 //
 // 参数：
 //   - cmd: 要执行的命令
@@ -110,12 +74,69 @@ func (e *EasySSH) execAll(cmd, description string, handleResult func(hostLabel s
 // 返回：
 //   - error: 执行错误，如果发生错误则返回非 nil 错误
 func (e *EasySSH) Exec(cmd, description string) error {
-	return e.execAll(cmd, description, func(hostLabel string, result RemoteExecResult) {
-		if e.Verbose && result.Success {
-			output := strings.TrimSpace(result.Output)
-			fmt.Printf("    %s\n", output)
+	results, err := e.ExecRaw(cmd)
+	if err != nil {
+		return err
+	}
+
+	// 打印结果
+	if len(results) == 0 {
+		fmt.Printf("==> 跳过 %s: 主机清单为空\n", description)
+		return nil
+	}
+
+	fmt.Printf("==> %s (%d hosts)\n", description, len(results))
+	fmt.Println("----------------------------------------")
+
+	successCount := 0
+	for _, result := range results {
+		hostLabel := fmt.Sprintf("%s:%d", result.Host, result.Port)
+
+		if result.Success {
+			fmt.Printf("%-20s : [ ✓ ok ]\n", hostLabel)
+			if e.Verbose && result.Output != "" {
+				fmt.Printf("    %s\n", strings.TrimSpace(result.Output))
+			}
+			successCount++
+		} else {
+			fmt.Printf("%-20s : [ ✗ failed ]\n", hostLabel)
+			if result.Output != "" {
+				fmt.Printf("    %s\n", strings.TrimSpace(result.Output))
+			}
 		}
-	})
+	}
+
+	fmt.Println("----------------------------------------")
+	fmt.Printf("==> 成功: %d/%d | 失败: %d/%d\n\n", successCount, len(results), len(results)-successCount, len(results))
+	return nil
+}
+
+// ExecRaw 在所有主机上执行命令并返回结构化结果
+//
+// 参数：
+//   - cmd: 要执行的命令
+//
+// 返回：
+//   - []RemoteExecResult: 每台主机的命令执行结果
+//   - error: 如果解析主机文件失败，返回错误
+func (e *EasySSH) ExecRaw(cmd string) ([]RemoteExecResult, error) {
+	hosts, err := e.LoadHosts()
+	if err != nil {
+		return nil, fmt.Errorf("解析主机清单失败: %w", err)
+	}
+
+	if len(hosts) == 0 {
+		return []RemoteExecResult{}, nil
+	}
+
+	results := make([]RemoteExecResult, 0, len(hosts))
+
+	for _, host := range hosts {
+		result := e.execOnHost(host, cmd)
+		results = append(results, result)
+	}
+
+	return results, nil
 }
 
 // ExecWithCallback 在所有主机上执行命令，并使用回调函数处理结果
@@ -125,62 +146,90 @@ func (e *EasySSH) Exec(cmd, description string) error {
 //   - description: 描述信息
 //   - processFunc: 处理结果函数，接收两个参数：hostLabel 和 output，分别表示服务器标签和输出结果
 func (e *EasySSH) ExecWithCallback(cmd, description string, processFunc func(hostLabel, output string)) {
-	_ = e.execAll(cmd, description, func(hostLabel string, result RemoteExecResult) {
+	results, err := e.ExecRaw(cmd)
+	if err != nil {
+		fmt.Printf("执行命令失败: %v\n", err)
+		return
+	}
+
+	for _, result := range results {
+		hostLabel := fmt.Sprintf("%s:%d", result.Host, result.Port)
 		if result.Success {
 			output := strings.TrimSpace(result.Output)
 			processFunc(hostLabel, output)
 		}
-	})
+	}
 }
 
-// PingHosts 测试所有主机的连通性
+// PingHosts 测试所有主机的连通性并打印结果
 //
-// 参数：
-//   - description: 描述信息
+// 返回：
+//   - error: 如果解析主机文件失败，返回错误
+func (e *EasySSH) PingHosts() error {
+	results, err := e.PingHostsRaw()
+	if err != nil {
+		return err
+	}
+
+	// 打印结果
+	if len(results) == 0 {
+		fmt.Println("==> 跳过 PING: 主机清单为空")
+		return nil
+	}
+
+	fmt.Printf("==> PING (%d hosts)\n", len(results))
+	fmt.Println("----------------------------------------")
+
+	successCount := 0
+	for _, result := range results {
+		hostLabel := fmt.Sprintf("%s:%d", result.Host, result.Port)
+
+		if result.Connected {
+			fmt.Printf("%-20s : [ ✓ ok (%.2fms) ]\n", hostLabel, float64(result.Latency.Nanoseconds())/1e6)
+			successCount++
+		} else {
+			fmt.Printf("%-20s : [ ✗ failed ]\n", hostLabel)
+			if e.Verbose && result.Err != nil {
+				fmt.Printf("    %v\n", result.Err)
+			}
+		}
+	}
+
+	fmt.Println("----------------------------------------")
+	fmt.Printf("==> 成功: %d/%d | 失败: %d/%d\n\n", successCount, len(results), len(results)-successCount, len(results))
+	return nil
+}
+
+// PingHostsRaw 测试所有主机的连通性并返回结构化结果
 //
 // 返回：
 //   - []PingResult: 每台主机的连通性测试结果
 //   - error: 如果解析主机文件失败，返回错误
-func (e *EasySSH) PingHosts(description string) ([]PingResult, error) {
+func (e *EasySSH) PingHostsRaw() ([]PingResult, error) {
 	hosts, err := e.LoadHosts()
 	if err != nil {
 		return nil, fmt.Errorf("解析主机清单失败: %w", err)
 	}
 
 	if len(hosts) == 0 {
-		fmt.Printf("==> 跳过 %s: 主机清单为空\n", description)
 		return []PingResult{}, nil
 	}
 
-	fmt.Printf("==> 开始 %s (共 %d 台主机)...\n", description, len(hosts))
-
 	results := make([]PingResult, 0, len(hosts))
-	successCount := 0
 
-	for i, host := range hosts {
-		hostLabel := fmt.Sprintf("%s:%d", host.Host, host.Port)
-		fmt.Printf("  [%d/%d] %s: ", i+1, len(hosts), hostLabel)
-
+	for _, host := range hosts {
 		// 测试 TCP 连通性
 		startTime := time.Now()
 		result := e.pingSingleHost(host.Host, host.Port)
 		latency := time.Since(startTime)
 
 		if result.Connected {
-			fmt.Printf("✓ ok (%.2fms)\n", float64(latency.Nanoseconds())/1e6)
 			result.Latency = latency
-			successCount++
-		} else {
-			fmt.Printf("✗ failed\n")
-			if e.Verbose && result.Err != nil {
-				fmt.Printf("    %v\n", result.Err)
-			}
 		}
 
 		results = append(results, result)
 	}
 
-	fmt.Printf("==> %s完成: 成功 %d/%d\n\n", description, successCount, len(hosts))
 	return results, nil
 }
 
