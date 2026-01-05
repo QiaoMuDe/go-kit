@@ -36,7 +36,8 @@ EasySSH 支持两种主机配置格式：
 type EasySSH struct {
 	HostsFile string        // 主机配置文件路径
 	Timeout   time.Duration // 连接超时时间
-	Verbose   bool          // 是否打印详细输出
+	ShowOutput bool         // 是否显示命令输出
+	ShowFormat bool         // 是否显示格式化执行输出
 	// Has unexported fields.
 }
 ```
@@ -46,7 +47,7 @@ EasySSH SSH管理器
 #### func New
 
 ```go
-func New(hostsFile string, timeout time.Duration, verbose bool) *EasySSH
+func New(hostsFile string, timeout time.Duration, showOutput, showFormat bool) *EasySSH
 ```
 
 New 创建 EasySSH 实例
@@ -54,7 +55,27 @@ New 创建 EasySSH 实例
 参数：
   - hostsFile: 主机清单文件路径
   - timeout: 超时时间
-  - verbose: 是否启用详细模式
+  - showOutput: 是否显示命令输出
+  - showFormat: 是否显示格式化执行输出
+
+返回：
+  - *EasySSH: 新创建的 EasySSH 实例
+
+#### func NewDef
+
+```go
+func NewDef(hostsFile string) *EasySSH
+```
+
+NewDef 创建 EasySSH 实例，使用默认设置
+
+默认设置：
+  - 超时时间：3秒
+  - 显示命令输出：true
+  - 显示格式化执行输出：true
+
+参数：
+  - hostsFile: 主机清单文件路径
 
 返回：
   - *EasySSH: 新创建的 EasySSH 实例

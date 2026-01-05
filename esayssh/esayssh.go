@@ -12,15 +12,38 @@ import (
 // 参数：
 //   - hostsFile: 主机清单文件路径
 //   - timeout: 超时时间
-//   - verbose: 是否启用详细模式
+//   - showOutput: 是否显示命令输出
+//   - showFormat: 是否显示格式化执行输出
 //
 // 返回：
 //   - *EasySSH: 新创建的 EasySSH 实例
-func New(hostsFile string, timeout time.Duration, verbose bool) *EasySSH {
+func New(hostsFile string, timeout time.Duration, showOutput, showFormat bool) *EasySSH {
 	return &EasySSH{
-		HostsFile: hostsFile,
-		Timeout:   timeout,
-		Verbose:   verbose,
+		HostsFile:  hostsFile,
+		Timeout:    timeout,
+		ShowOutput: showOutput,
+		ShowFormat: showFormat,
+	}
+}
+
+// NewDef 创建 EasySSH 实例，使用默认设置
+//
+// 默认设置：
+//   - 超时时间：3秒
+//   - 显示命令输出：true
+//   - 显示格式化执行输出：true
+//
+// 参数：
+//   - hostsFile: 主机清单文件路径
+//
+// 返回：
+//   - *EasySSH: 新创建的 EasySSH 实例
+func NewDef(hostsFile string) *EasySSH {
+	return &EasySSH{
+		HostsFile:  hostsFile,
+		Timeout:    3 * time.Second,
+		ShowOutput: true,
+		ShowFormat: true,
 	}
 }
 
@@ -70,12 +93,16 @@ func (e *EasySSH) execAll(cmd, description string, handleResult func(hostLabel s
 	}
 
 	if len(hosts) == 0 {
-		fmt.Printf("==> 跳过 %s: 主机清单为空\n", description)
+		if e.ShowFormat {
+			fmt.Printf("==> 跳过 %s: 主机清单为空\n", description)
+		}
 		return nil
 	}
 
-	fmt.Printf("==> %s (%d hosts)\n", description, len(hosts))
-	fmt.Println("----------------------------------------")
+	if e.ShowFormat {
+		fmt.Printf("==> %s (%d hosts)\n", description, len(hosts))
+		fmt.Println("----------------------------------------")
+	}
 
 	successCount := 0
 	for _, host := range hosts {
@@ -83,21 +110,27 @@ func (e *EasySSH) execAll(cmd, description string, handleResult func(hostLabel s
 		result := e.execOnHost(host, cmd)
 
 		if result.Success {
-			fmt.Printf("%-20s : [ ✓ ok ]\n", hostLabel)
+			if e.ShowFormat {
+				fmt.Printf("%-20s : [ ✓ ok ]\n", hostLabel)
+			}
 			if handleResult != nil {
 				handleResult(hostLabel, result)
 			}
 			successCount++
 		} else {
-			fmt.Printf("%-20s : [ ✗ failed ]\n", hostLabel)
-			if result.Output != "" {
+			if e.ShowFormat {
+				fmt.Printf("%-20s : [ ✗ failed ]\n", hostLabel)
+			}
+			if result.Output != "" && e.ShowOutput {
 				fmt.Printf("    %s\n", strings.TrimSpace(result.Output))
 			}
 		}
 	}
 
-	fmt.Println("----------------------------------------")
-	fmt.Printf("==> 成功: %d/%d | 失败: %d/%d\n\n", successCount, len(hosts), len(hosts)-successCount, len(hosts))
+	if e.ShowFormat {
+		fmt.Println("----------------------------------------")
+		fmt.Printf("==> 成功: %d/%d | 失败: %d/%d\n\n", successCount, len(hosts), len(hosts)-successCount, len(hosts))
+	}
 	return nil
 }
 
@@ -111,7 +144,7 @@ func (e *EasySSH) execAll(cmd, description string, handleResult func(hostLabel s
 //   - error: 执行错误，如果发生错误则返回非 nil 错误
 func (e *EasySSH) Exec(cmd, description string) error {
 	return e.execAll(cmd, description, func(hostLabel string, result RemoteExecResult) {
-		if e.Verbose && result.Success {
+		if e.ShowOutput && result.Success {
 			output := strings.TrimSpace(result.Output)
 			fmt.Printf("    %s\n", output)
 		}
@@ -133,11 +166,20 @@ func (e *EasySSH) ExecWithCallback(cmd, description string, processFunc func(hos
 	})
 }
 
-// PingHosts 测试所有主机的连通性
+// PingHosts 测试所有主机的连通性并打印结果
 //
 // 返回:
 //   - error: 如果解析主机文件失败，返回错误
 func (e *EasySSH) PingHosts() error {
+	// 临时保存原始设置
+	originalShowFormat := e.ShowFormat
+
+	// 确保显示格式化输出
+	e.ShowFormat = true
+	defer func() {
+		e.ShowFormat = originalShowFormat
+	}()
+
 	_, err := e.pingHosts()
 	return err
 }
@@ -163,12 +205,16 @@ func (e *EasySSH) pingHosts() ([]PingResult, error) {
 	}
 
 	if len(hosts) == 0 {
-		fmt.Println("==> 跳过 PING: 主机清单为空")
+		if e.ShowFormat {
+			fmt.Println("==> 跳过 PING: 主机清单为空")
+		}
 		return []PingResult{}, nil
 	}
 
-	fmt.Printf("==> PING (%d hosts)\n", len(hosts))
-	fmt.Println("----------------------------------------")
+	if e.ShowFormat {
+		fmt.Printf("==> PING (%d hosts)\n", len(hosts))
+		fmt.Println("----------------------------------------")
+	}
 
 	results := make([]PingResult, 0, len(hosts))
 	successCount := 0
@@ -182,12 +228,16 @@ func (e *EasySSH) pingHosts() ([]PingResult, error) {
 		latency := time.Since(startTime)
 
 		if result.Connected {
-			fmt.Printf("%-20s : [ ✓ ok (%.2fms) ]\n", hostLabel, float64(latency.Nanoseconds())/1e6)
+			if e.ShowFormat {
+				fmt.Printf("%-20s : [ ✓ ok (%.2fms) ]\n", hostLabel, float64(latency.Nanoseconds())/1e6)
+			}
 			result.Latency = latency
 			successCount++
 		} else {
-			fmt.Printf("%-20s : [ ✗ failed ]\n", hostLabel)
-			if e.Verbose && result.Err != nil {
+			if e.ShowFormat {
+				fmt.Printf("%-20s : [ ✗ failed ]\n", hostLabel)
+			}
+			if e.ShowOutput && result.Err != nil {
 				fmt.Printf("    %v\n", result.Err)
 			}
 		}
@@ -195,8 +245,10 @@ func (e *EasySSH) pingHosts() ([]PingResult, error) {
 		results = append(results, result)
 	}
 
-	fmt.Println("----------------------------------------")
-	fmt.Printf("==> 成功: %d/%d | 失败: %d/%d\n\n", successCount, len(hosts), len(hosts)-successCount, len(hosts))
+	if e.ShowFormat {
+		fmt.Println("----------------------------------------")
+		fmt.Printf("==> 成功: %d/%d | 失败: %d/%d\n\n", successCount, len(hosts), len(hosts)-successCount, len(hosts))
+	}
 	return results, nil
 }
 

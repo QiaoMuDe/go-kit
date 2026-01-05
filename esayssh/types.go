@@ -28,8 +28,9 @@ type PingResult struct {
 
 // EasySSH SSH管理器
 type EasySSH struct {
-	HostsFile string        // 主机配置文件路径
-	Timeout   time.Duration // 连接超时时间
-	Verbose   bool          // 是否打印详细输出
-	hosts     []HostConfig  // 缓存的主机列表
+	HostsFile  string        // 主机配置文件路径
+	Timeout    time.Duration // 连接超时时间
+	ShowOutput bool          // 是否显示命令输出
+	ShowFormat bool          // 是否显示格式化执行输出
+	hosts      []HostConfig  // 缓存的主机列表
 }

@@ -64,8 +64,11 @@ import (
 )
 
 func main() {
-    // 创建EasySSH实例
-    ssh := esayssh.New("hosts.txt", 5*time.Second, true)
+    // 创建EasySSH实例 - 使用所有默认设置
+    ssh := esayssh.NewDef("hosts.txt")
+    
+    // 或者分别控制命令输出和格式化输出
+    // ssh := esayssh.New("hosts.txt", 5*time.Second, true, true)
     
     // 测试所有主机连通性
     err := ssh.PingHosts()
