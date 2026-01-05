@@ -26,7 +26,7 @@ type PingResult struct {
 	Err       error         // 错误信息
 }
 
-// EasySSH SSH管理器（基础版）
+// EasySSH SSH管理器
 type EasySSH struct {
 	HostsFile string        // 主机配置文件路径
 	Timeout   time.Duration // 连接超时时间
