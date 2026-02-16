@@ -71,9 +71,9 @@ func MoveEx(src, dst string, overwrite bool) (err error) {
 	}
 
 	// 策略2：rename 失败，降级使用复制+删除（跨文件系统场景）
-	// 先执行复制操作
-	if err := CopyEx(src, dst, overwrite); err != nil {
-		return fmt.Errorf("failed to copy '%s' to '%s': %w", src, dst, err)
+	// 先执行复制操作（使用内部函数避免重复验证）
+	if err := copyExInternal(srcAbs, dstAbs, overwrite); err != nil {
+		return fmt.Errorf("failed to copy '%s' to '%s': %w", srcAbs, dstAbs, err)
 	}
 
 	// 复制成功，删除源文件/目录

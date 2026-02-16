@@ -106,6 +106,21 @@ func CopyEx(src, dst string, overwrite bool) (err error) {
 	// 智能路径处理：如果目标是已存在的目录，自动追加源文件名/目录名
 	dstAbs = resolveDestinationPathAbs(srcAbs, dstAbs)
 
+	// 调用内部复制函数
+	return copyExInternal(srcAbs, dstAbs, overwrite)
+}
+
+// copyExInternal 内部复制函数，接受已验证的绝对路径
+// 用于避免重复验证，供 MoveEx 等内部函数调用
+//
+// 参数:
+//   - srcAbs: 已验证的源绝对路径
+//   - dstAbs: 已验证的目标绝对路径（已通过智能路径处理）
+//   - overwrite: 是否允许覆盖已存在的目标文件/目录
+//
+// 返回:
+//   - error: 复制失败时返回错误
+func copyExInternal(srcAbs, dstAbs string, overwrite bool) error {
 	// 获取源路径信息（使用 Lstat 避免跟随符号链接）
 	srcInfo, localErr := os.Lstat(srcAbs)
 	if localErr != nil {
@@ -114,13 +129,11 @@ func CopyEx(src, dst string, overwrite bool) (err error) {
 
 	// 根据源路径类型调用相应的复制函数
 	if srcInfo.IsDir() {
-		err = copyDir(srcAbs, dstAbs, overwrite)
+		return copyDir(srcAbs, dstAbs, overwrite)
 	} else {
 		// 处理所有文件类型（普通文件、符号链接、特殊文件等）
-		err = copyFileRouter(srcAbs, dstAbs, srcInfo, overwrite)
+		return copyFileRouter(srcAbs, dstAbs, srcInfo, overwrite)
 	}
-
-	return err
 }
 
 // resolveDestinationPathAbs 解析目标路径，实现智能路径追加
