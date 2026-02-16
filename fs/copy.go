@@ -92,18 +92,14 @@ func CopyEx(src, dst string, overwrite bool) (err error) {
 		}
 	}()
 
-	// 获取并清理绝对路径（入口处统一处理）
-	srcAbs, err := filepath.Abs(filepath.Clean(src))
+	// 验证路径并获取绝对路径
+	srcAbs, dstAbs, err := validateAndResolvePaths(src, dst)
 	if err != nil {
-		return fmt.Errorf("failed to get absolute path for source '%s': %w", src, err)
-	}
-	dstAbs, err := filepath.Abs(filepath.Clean(dst))
-	if err != nil {
-		return fmt.Errorf("failed to get absolute path for destination '%s': %w", dst, err)
+		return err
 	}
 
-	// 基础路径验证：检查路径非空、源目标不相同
-	if err := validatePaths(srcAbs, dstAbs, false); err != nil {
+	// 验证路径之间的关系（检查路径不相同）
+	if err := validatePathRelations(srcAbs, dstAbs, false); err != nil {
 		return err
 	}
 
@@ -152,8 +148,38 @@ func resolveDestinationPathAbs(srcAbs, dstAbs string) string {
 	return filepath.Join(dstAbs, srcBase)
 }
 
-// validatePaths 验证复制操作的源路径和目标路径
-// 检查路径是否为空、源目标路径不相同、是否复制到子目录
+// validateAndResolvePaths 验证路径并返回绝对路径
+// 检查路径是否为空，获取并清理绝对路径
+//
+// 参数:
+//   - src: 源路径
+//   - dst: 目标路径
+//
+// 返回:
+//   - srcAbs: 源绝对路径
+//   - dstAbs: 目标绝对路径
+//   - error: 验证失败时返回错误
+func validateAndResolvePaths(src, dst string) (srcAbs, dstAbs string, err error) {
+	// 检查路径是否为空
+	if src == "" || dst == "" {
+		return "", "", fmt.Errorf("source and destination paths cannot be empty")
+	}
+
+	// 获取并清理绝对路径
+	srcAbs, err = filepath.Abs(filepath.Clean(src))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get absolute path for source '%s': %w", src, err)
+	}
+	dstAbs, err = filepath.Abs(filepath.Clean(dst))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get absolute path for destination '%s': %w", dst, err)
+	}
+
+	return srcAbs, dstAbs, nil
+}
+
+// validatePathRelations 验证路径之间的关系
+// 检查源路径和目标路径不相同、是否复制到子目录
 //
 // 参数:
 //   - srcAbs: 源绝对路径
@@ -162,12 +188,7 @@ func resolveDestinationPathAbs(srcAbs, dstAbs string) string {
 //
 // 返回:
 //   - error: 验证失败时返回错误
-func validatePaths(srcAbs, dstAbs string, checkSubdir bool) error {
-	// 参数验证
-	if srcAbs == "" || dstAbs == "" {
-		return fmt.Errorf("source and destination paths cannot be empty")
-	}
-
+func validatePathRelations(srcAbs, dstAbs string, checkSubdir bool) error {
 	// 检查源路径和目标路径不相同
 	if srcAbs == dstAbs {
 		return fmt.Errorf("source and destination paths cannot be the same")
@@ -480,7 +501,7 @@ func copyFileRouter(srcAbs, dstAbs string, srcInfo os.FileInfo, overwrite bool) 
 //   - error: 复制失败时返回错误
 func copyDir(srcAbs, dstAbs string, overwrite bool) error {
 	// 单独调用子目录检查（避免重复基础验证）
-	if err := validatePaths(srcAbs, dstAbs, true); err != nil {
+	if err := validatePathRelations(srcAbs, dstAbs, true); err != nil {
 		return err
 	}
 

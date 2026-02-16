@@ -3,7 +3,6 @@ package fs
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 )
 
 // Move 通用移动函数，将文件或目录移动到目标位置
@@ -40,20 +39,23 @@ func Move(src, dst string) error {
 // 移动策略:
 //  1. 优先使用 os.Rename（原子操作，同文件系统内高效）
 //  2. rename 失败时降级使用 CopyEx + os.RemoveAll（支持跨文件系统）
-func MoveEx(src, dst string, overwrite bool) error {
-	// 获取绝对路径
-	srcAbs, err := filepath.Abs(filepath.Clean(src))
+func MoveEx(src, dst string, overwrite bool) (err error) {
+	// 捕获 panic 并转换为错误
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("move operation panicked: %v", r)
+		}
+	}()
+
+	// 验证路径并获取绝对路径
+	srcAbs, dstAbs, err := validateAndResolvePaths(src, dst)
 	if err != nil {
-		return fmt.Errorf("failed to get absolute path for source '%s': %w", src, err)
-	}
-	dstAbs, err := filepath.Abs(filepath.Clean(dst))
-	if err != nil {
-		return fmt.Errorf("failed to get absolute path for destination '%s': %w", dst, err)
+		return err
 	}
 
-	// 基础路径验证：检查路径非空、源目标不相同、防止子目录循环
+	// 验证路径之间的关系（检查路径不相同、防止子目录循环）
 	// 注意：这里始终检查子目录，因为移动时这个问题和复制时一样严重
-	if err := validatePaths(srcAbs, dstAbs, true); err != nil {
+	if err := validatePathRelations(srcAbs, dstAbs, true); err != nil {
 		return err
 	}
 
@@ -66,13 +68,6 @@ func MoveEx(src, dst string, overwrite bool) error {
 	if renameErr == nil {
 		// rename 成功，直接返回
 		return nil
-	}
-
-	// 如果 rename 失败是因为目标已存在且不允许覆盖，直接返回错误
-	if !overwrite {
-		if _, err := os.Lstat(dstAbs); err == nil {
-			return renameErr
-		}
 	}
 
 	// 策略2：rename 失败，降级使用复制+删除（跨文件系统场景）
