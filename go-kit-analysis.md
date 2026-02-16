@@ -34,13 +34,17 @@ go-kit/
 │   ├── ssh.go                 # SSH协议底层实现
 │   └── types.go               # 数据结构定义
 ├── fs/                         # 文件系统工具模块
-│   ├── fs.go                  # 核心文件操作
 │   ├── copy.go                # 文件/目录复制
+│   ├── move.go                # 文件/目录移动
+│   ├── fs.go                  # 核心文件操作
 │   ├── check.go               # 路径检查
 │   ├── attr.go                # 文件属性接口
 │   ├── attr_unix.go           # Unix平台属性实现
 │   ├── attr_windows.go        # Windows平台属性实现
-│   └── mode.go                # 文件模式处理
+│   ├── path.go                # 路径处理功能
+│   ├── collect.go             # 文件收集功能
+│   ├── APIDOC.md             # API文档
+│   └── *_test.go             # 单元测试
 ├── hash/                       # 哈希工具模块
 │   └── hash.go                # 多算法哈希计算
 ├── id/                         # ID生成器模块
@@ -150,16 +154,28 @@ func NewBytePool(defCap, maxCap int) *BytePool {
 |------|------|----------|
 | 路径检查 | `Exists()`, `IsFile()`, `IsDir()` | `check.go` |
 | 文件复制 | `Copy()`, `CopyEx()` | `copy.go` |
-| 文件收集 | `Collect()` | `fs.go` |
+| 文件移动 | `Move()`, `MoveEx()` | `move.go` |
+| 文件收集 | `Collect()` | `collect.go` |
 | 路径获取 | `GetDefaultBinPath()`, `GetUserHomeDir()`, `GetExecutablePath()` | `fs.go` |
 | 大小计算 | `GetSize()` | `fs.go` |
 | 属性检查 | `IsHidden()`, `IsReadOnly()` | `attr.go` |
+| 权限处理 | `IsOctPerm()`, `OctStrToMode()` | `path.go` |
 
 **核心输入/输出**:
 - 输入: 文件路径、目录路径、通配符模式
 - 输出: 文件列表、布尔值、错误信息
 
 **跨平台支持**: 通过 `attr_unix.go` 和 `attr_windows.go` 实现平台适配
+
+**智能路径处理**:
+- 如果目标是已存在的目录，自动追加源文件名/目录名
+- 支持精确路径模式和自动追加模式
+- 自动创建父目录
+
+**安全特性**:
+- 文件复制使用临时文件 + 原子重命名保证原子性
+- 覆盖时先备份原文件，失败时自动恢复
+- 文件移动优先使用 os.Rename（同文件系统内），失败时降级使用复制+删除（支持跨文件系统）
 
 #### 3.2.3 hash 模块（业务核心模块）
 
@@ -342,10 +358,19 @@ graph TB
 用户调用 Copy(src, dst)
     │
     ▼
-validateCopyPaths(src, dst)  // 路径验证
+validateAndResolvePaths(src, dst)  // 路径验证和绝对路径解析
     │
     ▼
-os.Lstat(src)  // 获取源文件信息
+validatePathRelations(srcAbs, dstAbs, false)  // 路径关系验证
+    │
+    ▼
+resolveDestinationPathAbs(srcAbs, dstAbs)  // 智能路径处理
+    │
+    ▼
+copyExInternal(srcAbs, dstAbs, overwrite)  // 内部复制函数
+    │
+    ▼
+os.Lstat(srcAbs)  // 获取源文件信息
     │
     ├── 是目录 ──▶ copyDir()  // 递归复制目录
     │       │
@@ -366,7 +391,33 @@ os.Lstat(src)  // 获取源文件信息
             └── 特殊文件 ──▶ copySpecialFile()
 ```
 
-#### 5.2.2 ID生成流程
+#### 5.2.2 文件移动流程
+
+```
+用户调用 Move(src, dst)
+    │
+    ▼
+validateAndResolvePaths(src, dst)  // 路径验证和绝对路径解析
+    │
+    ▼
+validatePathRelations(srcAbs, dstAbs, true)  // 路径关系验证（检查子目录循环）
+    │
+    ▼
+resolveDestinationPathAbs(srcAbs, dstAbs)  // 智能路径处理
+    │
+    ▼
+tryRename(srcAbs, dstAbs, overwrite)  // 策略1：尝试 os.Rename
+    │
+    ├── 成功 ──▶ 返回
+    │
+    └── 失败 ──▶ copyExInternal(srcAbs, dstAbs, overwrite)  // 策略2：降级使用复制
+            │
+            ├── 复制成功 ──▶ os.RemoveAll(srcAbs)  // 删除源文件
+            │
+            └── 复制失败 ──▶ 返回错误
+```
+
+#### 5.2.3 ID生成流程
 
 ```
 用户调用 GenID(n)
@@ -386,7 +437,7 @@ genIDInternal(16, n)  // 内部生成方法
     └── pool.PutRand(r)  // 归还随机数生成器
 ```
 
-#### 5.2.3 SSH命令执行流程
+#### 5.2.4 SSH命令执行流程
 
 ```
 用户调用 ssh.Exec(cmd, description)
