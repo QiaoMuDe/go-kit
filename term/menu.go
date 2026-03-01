@@ -76,6 +76,9 @@
 //	    }
 //	    return true  // 继续循环
 //	})
+//	if err != nil {
+//	    fmt.Println("菜单循环错误:", err)
+//	}
 //
 // 示例4: 自定义样式
 //
