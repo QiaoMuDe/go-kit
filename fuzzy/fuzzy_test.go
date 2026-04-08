@@ -201,7 +201,7 @@ func TestFindWithRealworldData(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		filenames := strings.Split(string(bytes), "\n")
+		filenames := strings.Split(strings.ReplaceAll(string(bytes), "\r", ""), "\n")
 
 		for _, c := range cases {
 			now := time.Now()
@@ -248,7 +248,7 @@ func TestFindWithRealworldData(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		filenames := strings.Split(string(bytes), "\n")
+		filenames := strings.Split(strings.ReplaceAll(string(bytes), "\r", ""), "\n")
 
 		for _, c := range cases {
 			now := time.Now()
@@ -276,7 +276,7 @@ func BenchmarkFind(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		filenames := strings.Split(string(bytes), "\n")
+		filenames := strings.Split(strings.ReplaceAll(string(bytes), "\r", ""), "\n")
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			fuzzy.Find("lll", filenames)
@@ -288,7 +288,7 @@ func BenchmarkFind(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		filenames := strings.Split(string(bytes), "\n")
+		filenames := strings.Split(strings.ReplaceAll(string(bytes), "\r", ""), "\n")
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			fuzzy.Find("alsa", filenames)
