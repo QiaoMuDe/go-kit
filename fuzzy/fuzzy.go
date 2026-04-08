@@ -78,6 +78,11 @@ func FindFromNoSort(pattern string, data Source) Matches {
 		return nil
 	}
 
+	// 空数据源直接返回 nil，无需匹配
+	if data.Len() == 0 {
+		return nil
+	}
+
 	// 将模式字符串转换为 rune 切片，以正确处理 Unicode 字符
 	runes := []rune(pattern)
 	var matches Matches
@@ -87,7 +92,9 @@ func FindFromNoSort(pattern string, data Source) Matches {
 	for i := 0; i < data.Len(); i++ {
 		// 创建当前字符串的匹配结果对象
 		var match Match
-		match.Str = data.String(i)
+		// 缓存字符串，避免多次调用 data.String(i) 带来的性能开销
+		str := data.String(i)
+		match.Str = str
 		match.Index = i
 
 		// 复用 matchedIndexes 切片以减少内存分配
@@ -107,12 +114,12 @@ func FindFromNoSort(pattern string, data Source) Matches {
 		var lastIndex int           // 上一个遍历的字符位置
 
 		// 预读取字符串的第一个字符
-		nextc, nextSize := utf8.DecodeRuneInString(data.String(i))
+		nextc, nextSize := utf8.DecodeRuneInString(str)
 		var candidate rune
 		var candidateSize int
 
 		// 遍历字符串中的每个字符，寻找模式匹配
-		for j := 0; j < len(data.String(i)); j += candidateSize {
+		for j := 0; j < len(str); j += candidateSize {
 			candidate, candidateSize = nextc, nextSize
 
 			// 检查当前字符是否匹配当前模式字符（不区分大小写）
@@ -158,11 +165,11 @@ func FindFromNoSort(pattern string, data Source) Matches {
 			}
 
 			// 读取字符串中的下一个字符（ASCII 快速路径优化）
-			if j+candidateSize < len(data.String(i)) {
-				if data.String(i)[j+candidateSize] < utf8.RuneSelf { // Fast path for ASCII
-					nextc, nextSize = rune(data.String(i)[j+candidateSize]), 1
+			if j+candidateSize < len(str) {
+				if str[j+candidateSize] < utf8.RuneSelf { // Fast path for ASCII
+					nextc, nextSize = rune(str[j+candidateSize]), 1
 				} else {
-					nextc, nextSize = utf8.DecodeRuneInString(data.String(i)[j+candidateSize:])
+					nextc, nextSize = utf8.DecodeRuneInString(str[j+candidateSize:])
 				}
 			} else {
 				nextc, nextSize = 0, 0
@@ -199,7 +206,7 @@ func FindFromNoSort(pattern string, data Source) Matches {
 
 		// 惩罚：对字符串中每个未匹配的字符应用惩罚
 		// 公式：匹配字符数 - 字符串总长度（结果为负值，即惩罚）
-		penalty := len(match.MatchedIndexes) - len(data.String(i))
+		penalty := len(match.MatchedIndexes) - len(str)
 		match.Score += penalty
 
 		// 如果所有模式字符都匹配成功，则加入结果列表
