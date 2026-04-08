@@ -149,7 +149,7 @@ func RenderBasicMenu(title string, options []string, style *MenuStyle) string {
 	for i, option := range options {
 		builder.WriteString(indent)
 		builder.WriteString(style.Prefix)
-		builder.WriteString(fmt.Sprintf("%d", i+1))
+		fmt.Fprintf(&builder, "%d", i+1)
 		builder.WriteString(style.Separator)
 		builder.WriteString(option)
 		builder.WriteString("\n")
