@@ -14,8 +14,8 @@
 
 ```
 go-kit/
-├── esayssh/          # SSH远程操作模块
-│   ├── esayssh.go    # SSH管理器核心实现
+├── easyssh/          # SSH远程操作模块
+│   ├── easyssh.go    # SSH管理器核心实现
 │   ├── ssh.go        # SSH连接和命令执行
 │   └── types.go      # 类型定义
 ├── fs/               # 文件系统操作模块
@@ -62,7 +62,7 @@ go-kit/
 | 维度 | 评价 | 说明 |
 |------|------|------|
 | **模块划分** | ⭐⭐⭐⭐⭐ | 9个一级模块，职责清晰单一 |
-| **命名规范** | ⭐⭐⭐⭐ | 基本规范，`esayssh`拼写错误应为`easyssh` |
+| **命名规范** | ⭐⭐⭐⭐ | 基本规范，`easyssh`拼写错误应为`easyssh` |
 | **文件组织** | ⭐⭐⭐⭐⭐ | 每个模块内文件职责明确，无冗余文件 |
 | **跨平台支持** | ⭐⭐⭐⭐⭐ | 使用构建标签(attr_unix.go/attr_windows.go)实现平台适配 |
 | **测试覆盖** | ⭐⭐⭐⭐ | 各模块都有对应_test.go文件 |
@@ -88,7 +88,7 @@ go-kit/
 | **hash** | 多算法哈希计算（MD5/SHA1/SHA256/SHA512） | hash.go | pool |
 | **id** | 唯一ID生成（时间戳+随机数、UUID格式） | id.go | pool |
 | **term** | 终端交互（输入、菜单） | read.go, menu.go, basic_menu.go | 无（外部:golang.org/x/term） |
-| **esayssh** | SSH远程操作（批量执行、连通性测试） | esayssh.go, ssh.go, types.go | 无（外部:golang.org/x/crypto/ssh） |
+| **easyssh** | SSH远程操作（批量执行、连通性测试） | easyssh.go, ssh.go, types.go | 无（外部:golang.org/x/crypto/ssh） |
 | **fuzzy** | 模糊字符串匹配（类似IDE搜索） | fuzzy.go, types.go | 无 |
 
 ### 2.3 模块核心输入/输出
@@ -119,7 +119,7 @@ term模块:
   输出: 用户输入、选择结果
   核心依赖资源: 标准输入输出、golang.org/x/term
 
-esayssh模块:
+easyssh模块:
   输入: 主机配置文件、命令字符串
   输出: 执行结果、连通性状态
   核心依赖资源: SSH连接、golang.org/x/crypto/ssh
@@ -154,13 +154,13 @@ fuzzy模块:
 
 独立模块（无内部依赖）:
 ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐
-│   str   │  │  utils  │  │  term   │  │ esayssh │  │  fuzzy  │
+│   str   │  │  utils  │  │  term   │  │ easyssh │  │  fuzzy  │
 │(字符串) │  │(通用工具)│  │(终端UI) │  │ (SSH)   │  │(模糊匹配)│
 └─────────┘  └─────────┘  └─────────┘  └─────────┘  └─────────┘
 
 外部依赖:
 - term: golang.org/x/term
-- esayssh: golang.org/x/crypto/ssh
+- easyssh: golang.org/x/crypto/ssh
 - hash: github.com/schollz/progressbar/v3
 ```
 
@@ -172,7 +172,7 @@ fuzzy模块:
 | hash → pool | 强依赖 | 使用字节池优化哈希计算缓冲区，减少GC压力 |
 | id → pool | 强依赖 | 使用随机数池和字符串构建器池生成ID |
 | term → external | 外部依赖 | 依赖golang.org/x/term实现密码无回显输入 |
-| esayssh → external | 外部依赖 | 依赖golang.org/x/crypto/ssh实现SSH协议 |
+| easyssh → external | 外部依赖 | 依赖golang.org/x/crypto/ssh实现SSH协议 |
 | hash → external | 外部依赖 | 依赖github.com/schollz/progressbar/v3显示进度条 |
 
 ### 3.3 依赖健康度评估
@@ -200,8 +200,8 @@ fuzzy模块:
 | **降级策略模式** | fs | move.go:67-82 | 移动操作优先使用原子rename，失败时降级为copy+delete |
 | **RAII模式** | pool | buffer.go:178-183, string.go:187-191 | WithXxx系列函数通过defer自动归还资源 |
 | **泛型模式** | pool | rand.go:90-94, 115-119 | WithRand[T]使用Go泛型提供类型安全的随机数使用 |
-| **外观模式** | esayssh | esayssh.go:20-48 | EasySSH封装复杂的SSH操作，提供简洁API |
-| **回调模式** | esayssh | esayssh.go:154-167 | ExecWithCallback使用回调函数处理执行结果 |
+| **外观模式** | easyssh | easyssh.go:20-48 | EasySSH封装复杂的SSH操作，提供简洁API |
+| **回调模式** | easyssh | easyssh.go:154-167 | ExecWithCallback使用回调函数处理执行结果 |
 | **命令模式** | term | menu.go:137-152 | MenuItem封装菜单选项作为命令 |
 | **错误类型模式** | term | menu.go:163-183 | MenuError自定义错误类型提供结构化错误信息 |
 
@@ -403,7 +403,7 @@ go = "1.25.0"
 
 | 优先级 | 优化项 | 建议 |
 |--------|--------|------|
-| **P1** | 模块命名 | `esayssh`拼写错误，建议改为`easyssh` |
+| **P1** | 模块命名 | `easyssh`拼写错误，建议改为`easyssh` |
 | **P2** | 泛型使用 | 可进一步使用泛型简化部分代码（如ID生成） |
 | **P3** | 配置管理 | 部分全局默认配置可考虑使用配置对象模式 |
 | **P4** | 示例程序 | fuzzy/example依赖的gocui维护较少，可考虑替换 |
@@ -414,7 +414,7 @@ go = "1.25.0"
 ┌─────────────────────────────────────────────────────────────┐
 │  Go-Kit 核心记忆                                             │
 ├─────────────────────────────────────────────────────────────┤
-│  • 9个模块: pool/fs/hash/id/str/utils/term/esayssh/fuzzy    │
+│  • 9个模块: pool/fs/hash/id/str/utils/term/easyssh/fuzzy    │
 │  • 1个基础: pool模块被fs/hash/id依赖                        │
 │  • 0循环依赖: 依赖关系呈树状                                │
 │  • 5种对象池: Byte/Buffer/String/Rand/Timer                 │

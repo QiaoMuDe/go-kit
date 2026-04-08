@@ -62,7 +62,7 @@ go get gitee.com/MM-Q/go-kit
 | `utils` | 独立 | 通用工具 | 字节格式化、JSON转义 | 无 |
 | `term` | 独立 | 终端工具 | 输入读取、确认框、密码、菜单 | golang.org/x/term |
 | `fuzzy` | 独立 | 模糊匹配 | 智能模糊搜索、评分排序、高亮匹配 | 无 |
-| `esayssh` | 独立 | SSH工具 | 多主机操作、连通性测试、批量执行 | golang.org/x/crypto/ssh |
+| `easyssh` | 独立 | SSH工具 | 多主机操作、连通性测试、批量执行 | golang.org/x/crypto/ssh |
 
 ### 模块详细说明
 
@@ -140,7 +140,7 @@ go get gitee.com/MM-Q/go-kit
 - **高亮支持**：返回匹配字符索引，支持结果高亮显示
 - **Unicode支持**：完整支持多语言字符（大小写不敏感）
 
-#### 🔌 esayssh - SSH工具
+#### 🔌 easyssh - SSH工具
 
 简化的多主机SSH连接和命令执行：
 
@@ -176,7 +176,7 @@ go test ./str
 go test ./term
 go test ./fuzzy
 go test ./utils
-go test ./esayssh
+go test ./easyssh
 ```
 
 ### 生成测试覆盖率报告

@@ -1,4 +1,4 @@
-package esayssh
+package easyssh
 
 import (
 	"bufio"

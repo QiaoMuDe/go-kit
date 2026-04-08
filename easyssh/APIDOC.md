@@ -1,7 +1,7 @@
-# esayssh
+# easyssh
 
 ```go
-package esayssh // import "gitee.com/MM-Q/go-kit/esayssh"
+package easyssh // import "gitee.com/MM-Q/go-kit/easyssh"
 ```
 
 ## 主机清单格式
