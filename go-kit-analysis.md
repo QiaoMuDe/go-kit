@@ -29,6 +29,7 @@ go-kit/
 │   └── mode.go       # 权限转换工具
 ├── fuzzy/            # 模糊字符串匹配模块
 │   ├── fuzzy.go      # 核心匹配算法
+│   ├── complete.go   # 命令行补全搜索（前缀优先）
 │   ├── types.go      # 类型定义和评分常量
 │   └── example/      # 交互式示例程序
 ├── hash/             # 哈希计算模块
@@ -278,7 +279,45 @@ FindFromNoSort(pattern, data)
             └─→ 如果全部匹配成功 → 加入结果列表
 ```
 
-#### 4.2.3 ID生成流程 (id/id.go)
+#### 4.2.3 命令行补全流程 (fuzzy/complete.go)
+
+```
+Complete(pattern, candidates)
+    │
+    ├─→ 边界检查（空模式或空候选返回nil）
+    │
+    ├─→ 遍历所有候选
+    │       │
+    │       └─→ matchComplete(pattern, candidate)
+    │               │
+    │               ├─→ [精确匹配] → 返回1000分 + 全字符索引
+    │               │
+    │               ├─→ [前缀匹配] → 返回(200-长度)分，确保100-200分区间
+    │               │                   记录前缀匹配位置(0到len(pattern)-1)
+    │               │
+    │               └─→ [模糊匹配] → 调用FindFromNoSort，分数/10
+    │                                   最高99分，确保前缀匹配优先
+    │
+    ├─→ 收集所有score>0的匹配结果
+    │
+    └─→ sort.Stable() 稳定排序（分数降序，相同分数按原始索引升序）
+
+CompletePrefix(pattern, candidates)
+    │
+    ├─→ 仅匹配前缀（不区分大小写）
+    │
+    ├─→ 分数 = 1000 - len(candidate)（越短分数越高）
+    │
+    └─→ 稳定排序返回
+
+CompleteExact(pattern, candidates)
+    │
+    └─→ 仅精确匹配（区分大小写）
+            │
+            └─→ 匹配成功返回10000分，否则返回nil
+```
+
+#### 4.2.4 ID生成流程 (id/id.go)
 
 ```
 GenID(n)
@@ -385,6 +424,8 @@ go = "1.25.0"
 | **预分配容量** | strings.Builder预分配容量避免扩容 | str/str.go:72-78 |
 | **批量写入** | io.CopyBuffer批量读写 | hash/hash.go:134 |
 | **切片复用** | matchedIndexes切片复用减少GC | fuzzy/fuzzy.go:84,211 |
+| **稳定排序** | sort.Stable保持相同分数项的原始顺序 | fuzzy/complete.go:76 |
+| **分数分级** | 精确(1000) > 前缀(100-200) > 模糊(0-99) | fuzzy/complete.go:169-207 |
 
 ---
 
@@ -419,6 +460,7 @@ go = "1.25.0"
 │  • 0循环依赖: 依赖关系呈树状                                │
 │  • 5种对象池: Byte/Buffer/String/Rand/Timer                 │
 │  • 4种奖励: 首字符/驼峰/分隔符/相邻匹配                     │
+│  • 3种补全: Complete/CompletePrefix/CompleteExact           │
 │  • 跨平台: Unix/Windows使用构建标签区分                     │
 │  • 原子操作: 文件复制使用临时文件+rename                    │
 │  • 设计模式: 对象池/工厂/策略/模板方法/外观                 │
@@ -458,6 +500,12 @@ password, _ := term.ReadPassword("请输入密码: ")
 // fuzzy - 模糊匹配
 matches := fuzzy.Find("abc", []string{"abc", "abc123", "xyz"})
 // matches按匹配质量排序，包含分数和匹配位置
+
+// fuzzy - 命令行补全
+flags := []string{"--verbose", "--version", "-v", "-h"}
+matches := fuzzy.Complete("--v", flags)        // 优先前缀，其次模糊
+matches = fuzzy.CompletePrefix("--v", flags)   // 仅前缀匹配
+matches = fuzzy.CompleteExact("-v", flags)     // 仅精确匹配
 ```
 
 ---

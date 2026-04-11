@@ -139,6 +139,10 @@ go get gitee.com/MM-Q/go-kit
 - **多种接口**：`Find`/`FindNoSort`/`FindFrom`/`FindFromNoSort`
 - **高亮支持**：返回匹配字符索引，支持结果高亮显示
 - **Unicode支持**：完整支持多语言字符（大小写不敏感）
+- **命令行补全**：`Complete`/`CompletePrefix`/`CompleteExact` 专为命令行标志补全设计
+  - 优先前缀匹配，其次模糊匹配
+  - 精确匹配(1000分) > 前缀匹配(100-200分) > 模糊匹配(0-99分)
+  - 适用于 CLI 工具自动补全场景
 
 #### 🔌 easyssh - SSH工具
 

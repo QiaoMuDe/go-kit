@@ -112,6 +112,82 @@ FindNoSort 在 data 中查找 pattern 并返回匹配结果，不排序。该函
 **返回值:**
 - `Matches`: 匹配结果（未排序）
 
+### Complete
+
+```go
+func Complete(pattern string, candidates []string) Matches
+```
+
+Complete 在 candidates 中搜索 pattern，优先前缀匹配，其次模糊匹配。返回按匹配质量排序的结果，分数越高表示匹配度越好。
+
+适用于命令行标志补全场景，匹配优先级如下：
+1. 精确匹配 (1000分)
+2. 前缀匹配 (100-200分，越短的候选分数越高)
+3. 模糊匹配 (0-99分，复用 fuzzy 算法但降低权重)
+
+**参数:**
+- `pattern`: 要查找的模式字符串
+- `candidates`: 候选字符串切片
+
+**返回值:**
+- `Matches`: 按匹配质量降序排列的匹配结果
+
+**示例:**
+
+```go
+flags := []string{"--verbose", "--version", "-v"}
+matches := fuzzy.Complete("--v", flags)
+// matches[0].Str = "--verbose"
+// matches[1].Str = "--version"
+// matches[2].Str = "-v"
+```
+
+### CompletePrefix
+
+```go
+func CompletePrefix(pattern string, candidates []string) Matches
+```
+
+CompletePrefix 仅返回以 pattern 为前缀的候选。不区分大小写，返回结果按候选长度升序排列（短的优先）。
+
+**参数:**
+- `pattern`: 前缀模式字符串
+- `candidates`: 候选字符串切片
+
+**返回值:**
+- `Matches`: 前缀匹配的结果列表
+
+**示例:**
+
+```go
+flags := []string{"--verbose", "--version", "-v"}
+matches := fuzzy.CompletePrefix("--v", flags)
+// 结果: [--verbose, --version] (不包含 -v)
+```
+
+### CompleteExact
+
+```go
+func CompleteExact(pattern string, candidates []string) Matches
+```
+
+CompleteExact 仅返回与 pattern 完全相等的候选。区分大小写。
+
+**参数:**
+- `pattern`: 精确匹配字符串
+- `candidates`: 候选字符串切片
+
+**返回值:**
+- `Matches`: 精确匹配的结果列表（最多一个）
+
+**示例:**
+
+```go
+flags := []string{"--verbose", "--version", "-v"}
+matches := fuzzy.CompleteExact("-v", flags)
+// 结果: [-v]
+```
+
 ## Matches 方法
 
 ### Len
@@ -131,14 +207,14 @@ Len 返回匹配结果的长度。
 func (a Matches) Less(i, j int) bool
 ```
 
-Less 返回第一个匹配结果的分数是否大于或等于第二个匹配结果的分数。
+Less 返回第一个匹配结果是否应该排在第二个匹配结果之前。按分数降序排列，分数相同时按原始索引升序排列（稳定排序）。
 
 **参数:**
 - `i`: 第一个匹配结果的索引
 - `j`: 第二个匹配结果的索引
 
 **返回值:**
-- `bool`: 如果第一个匹配结果的分数大于或等于第二个匹配结果的分数，则返回 true
+- `bool`: 如果第一个匹配结果应该排在第二个之前，则返回 true
 
 ### Swap
 

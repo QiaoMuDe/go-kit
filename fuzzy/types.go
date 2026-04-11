@@ -41,15 +41,21 @@ func (a Matches) Len() int { return len(a) }
 //   - j: 第二个匹配结果的索引
 func (a Matches) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
-// Less 返回第一个匹配结果的分数是否大于或等于第二个匹配结果的分数。
+// Less 返回第一个匹配结果是否应该排在第二个匹配结果之前。
+// 按分数降序排列，分数相同时按原始索引升序排列（稳定排序）。
 //
 // 参数:
 //   - i: 第一个匹配结果的索引
 //   - j: 第二个匹配结果的索引
 //
 // 返回值:
-//   - bool: 如果第一个匹配结果的分数大于或等于第二个匹配结果的分数，则返回 true
-func (a Matches) Less(i, j int) bool { return a[i].Score >= a[j].Score }
+//   - bool: 如果第一个匹配结果应该排在第二个之前，则返回 true
+func (a Matches) Less(i, j int) bool {
+	if a[i].Score == a[j].Score {
+		return a[i].Index < a[j].Index
+	}
+	return a[i].Score > a[j].Score
+}
 
 // Source 表示字符串列表的抽象源。Source 必须是可迭代类型，如切片。
 // 源将被迭代直到 Len()，对每个元素调用 String(i)，其中 i 是元素的索引。
