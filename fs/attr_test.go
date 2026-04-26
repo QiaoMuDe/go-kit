@@ -3,6 +3,7 @@ package fs
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -149,6 +150,180 @@ func TestIsReadOnly(t *testing.T) {
 	}
 }
 
+// TestIsDriveRoot 测试盘符根目录检测（Windows 特有）
+func TestIsDriveRoot(t *testing.T) {
+	// 仅在 Windows 上测试
+	if runtime.GOOS != "windows" {
+		t.Skip("IsDriveRoot 仅在 Windows 上测试")
+	}
+
+	tests := []struct {
+		name     string
+		path     string
+		expected bool
+		desc     string
+	}{
+		{
+			name:     "标准盘符 D:",
+			path:     "D:",
+			expected: true,
+			desc:     "标准盘符格式",
+		},
+		{
+			name:     "带反斜杠 D:\\",
+			path:     "D:\\",
+			expected: true,
+			desc:     "带反斜杠的盘符",
+		},
+		{
+			name:     "带斜杠 D:/",
+			path:     "D:/",
+			expected: true,
+			desc:     "带斜杠的盘符",
+		},
+		{
+			name:     "小写 d:",
+			path:     "d:",
+			expected: true,
+			desc:     "小写盘符",
+		},
+		{
+			name:     "小写带反斜杠 d:\\",
+			path:     "d:\\",
+			expected: true,
+			desc:     "小写带反斜杠",
+		},
+		{
+			name:     "带空格 D: ",
+			path:     "D: ",
+			expected: true,
+			desc:     "带尾部空格的盘符",
+		},
+		{
+			name:     "带前导空格  D:",
+			path:     "  D:",
+			expected: true,
+			desc:     "带前导空格的盘符",
+		},
+		{
+			name:     "非盘符路径",
+			path:     "D:\\folder",
+			expected: false,
+			desc:     "包含子目录的路径",
+		},
+		{
+			name:     "普通路径",
+			path:     "C:\\Windows",
+			expected: false,
+			desc:     "普通文件路径",
+		},
+		{
+			name:     "空字符串",
+			path:     "",
+			expected: false,
+			desc:     "空字符串",
+		},
+		{
+			name:     "单字符",
+			path:     "D",
+			expected: false,
+			desc:     "单字符",
+		},
+		{
+			name:     "无冒号",
+			path:     "DX",
+			expected: false,
+			desc:     "无冒号",
+		},
+		{
+			name:     "数字盘符",
+			path:     "1:",
+			expected: false,
+			desc:     "数字不是有效盘符",
+		},
+		{
+			name:     "太长路径",
+			path:     "D:\\folder\\file",
+			expected: false,
+			desc:     "超过3个字符的路径",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsDriveRoot(tt.path)
+			if result != tt.expected {
+				t.Errorf("IsDriveRoot(%q) = %v, 期望 %v - %s", tt.path, result, tt.expected, tt.desc)
+			}
+		})
+	}
+}
+
+// TestGetFileOwner 测试获取文件所有者
+func TestGetFileOwner(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// 创建测试文件
+	testFile := filepath.Join(tempDir, "owner_test.txt")
+	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+		t.Fatalf("创建测试文件失败: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		path        string
+		expectEmpty bool
+		desc        string
+	}{
+		{
+			name:        "存在的文件",
+			path:        testFile,
+			expectEmpty: false,
+			desc:        "存在的文件应该返回所有者信息",
+		},
+		{
+			name:        "不存在的文件",
+			path:        filepath.Join(tempDir, "nonexistent.txt"),
+			expectEmpty: true,
+			desc:        "不存在的文件应该返回 ?",
+		},
+		{
+			name:        "空路径",
+			path:        "",
+			expectEmpty: true,
+			desc:        "空路径应该返回 ?",
+		},
+		{
+			name:        "目录",
+			path:        tempDir,
+			expectEmpty: false,
+			desc:        "目录也应该返回所有者信息",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			owner, group := GetFileOwner(tt.path)
+
+			if tt.expectEmpty {
+				if owner != "?" || group != "?" {
+					t.Errorf("GetFileOwner(%q) = (%q, %q), 期望 (?, ?) - %s",
+						tt.path, owner, group, tt.desc)
+				}
+			} else {
+				// 在 Unix 系统上应该返回有效的用户名
+				// 在 Windows 上可能返回 ? 或实际用户名
+				if runtime.GOOS != "windows" {
+					if owner == "" || owner == "?" {
+						t.Errorf("GetFileOwner(%q) 返回空所有者 - %s", tt.path, tt.desc)
+					}
+				}
+				t.Logf("GetFileOwner(%q) = (owner: %q, group: %q)", tt.path, owner, group)
+			}
+		})
+	}
+}
+
 // 边界条件测试
 func TestAttrBoundaryConditions(t *testing.T) {
 	tests := []struct {
@@ -178,10 +353,11 @@ func TestAttrBoundaryConditions(t *testing.T) {
 			// 这些调用不应该panic
 			hidden := IsHidden(tt.path)
 			readonly := IsReadOnly(tt.path)
+			owner, group := GetFileOwner(tt.path)
 
-			// 对于无效路径，函数应该返回false
-			t.Logf("路径 %q: IsHidden=%v, IsReadOnly=%v - %s",
-				tt.path, hidden, readonly, tt.desc)
+			// 对于无效路径，函数应该返回false或?
+			t.Logf("路径 %q: IsHidden=%v, IsReadOnly=%v, Owner=%q, Group=%q - %s",
+				tt.path, hidden, readonly, owner, group, tt.desc)
 		})
 	}
 }
@@ -212,6 +388,35 @@ func BenchmarkIsReadOnly(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		IsReadOnly(testFile)
+	}
+}
+
+// BenchmarkIsDriveRoot 基准测试盘符根目录检测
+func BenchmarkIsDriveRoot(b *testing.B) {
+	if runtime.GOOS != "windows" {
+		b.Skip("仅在 Windows 上测试")
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		IsDriveRoot("C:\\")
+		IsDriveRoot("D:")
+		IsDriveRoot("E:/")
+	}
+}
+
+// BenchmarkGetFileOwner 基准测试获取文件所有者
+func BenchmarkGetFileOwner(b *testing.B) {
+	tempDir := b.TempDir()
+	testFile := filepath.Join(tempDir, "owner_benchmark.txt")
+
+	if err := os.WriteFile(testFile, []byte("content"), 0644); err != nil {
+		b.Fatalf("创建基准测试文件失败: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = GetFileOwner(testFile)
 	}
 }
 
@@ -247,6 +452,7 @@ func TestAttrConcurrency(t *testing.T) {
 				if !IsReadOnly(readonlyFile) {
 					t.Errorf("并发测试中IsReadOnly返回了错误结果")
 				}
+				_, _ = GetFileOwner(hiddenFile)
 			}
 		}()
 	}

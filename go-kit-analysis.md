@@ -19,14 +19,16 @@ go-kit/
 │   ├── ssh.go        # SSH连接和命令执行
 │   └── types.go      # 类型定义
 ├── fs/               # 文件系统操作模块
-│   ├── fs.go         # 路径工具、目录遍历
+│   ├── fs.go         # 路径工具、目录遍历、二进制文件检测
 │   ├── copy.go       # 文件/目录复制（原子性）
 │   ├── move.go       # 文件/目录移动
 │   ├── check.go      # 路径检查（Exists/IsFile/IsDir）
 │   ├── attr.go       # 跨平台属性接口
 │   ├── attr_unix.go  # Unix属性实现（构建标签）
 │   ├── attr_windows.go # Windows属性实现（构建标签）
-│   └── mode.go       # 权限转换工具
+│   ├── mode.go       # 权限转换工具
+│   ├── attr_test.go  # 属性检查测试
+│   └── binary_test.go # 二进制文件检测测试
 ├── fuzzy/            # 模糊字符串匹配模块
 │   ├── fuzzy.go      # 核心匹配算法
 │   ├── complete.go   # 命令行补全搜索（前缀优先）
@@ -426,6 +428,9 @@ go = "1.25.0"
 | **切片复用** | matchedIndexes切片复用减少GC | fuzzy/fuzzy.go:84,211 |
 | **稳定排序** | sort.Stable保持相同分数项的原始顺序 | fuzzy/complete.go:76 |
 | **分数分级** | 精确(1000) > 前缀(100-200) > 模糊(0-99) | fuzzy/complete.go:169-207 |
+| **文件指针重置** | 二进制检测后重置文件指针到开头 | fs/fs.go:447-450 |
+| **空文件优化** | 空文件直接返回false，避免读取 | fs/fs.go:429-432 |
+| **错误静默处理** | 简洁版函数(IsBinary/IsBinaryPath)忽略错误 | fs/fs.go:461-474 |
 
 ---
 
@@ -464,6 +469,10 @@ go = "1.25.0"
 │  • 跨平台: Unix/Windows使用构建标签区分                     │
 │  • 原子操作: 文件复制使用临时文件+rename                    │
 │  • 设计模式: 对象池/工厂/策略/模板方法/外观                 │
+│  • 4种二进制检测: IsBinaryFile/IsBinaryFilePath/IsBinary/IsBinaryPath │
+│  • 3种属性检查: IsHidden/IsReadOnly/IsDriveRoot             │
+│  • 2种终端检测: IsStdinPipe/IsStdinPipeWithError            │
+│  • 1种所有者获取: GetFileOwner (跨平台)                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -479,6 +488,16 @@ defer pool.PutByte(buf)
 // fs - 文件复制
 err := fs.Copy("source.txt", "dest.txt")
 err = fs.CopyEx("dir1", "dir2", true) // 允许覆盖
+
+// fs - 二进制文件检测
+isBinary, _ := fs.IsBinaryFile(file)        // 完整版，返回错误
+isBinary = fs.IsBinaryPath("/path/to/file") // 简洁版，忽略错误
+
+// fs - 文件属性检查
+hidden := fs.IsHidden(".gitignore")         // 检查是否隐藏
+readonly := fs.IsReadOnly("config.txt")     // 检查是否只读
+isRoot := fs.IsDriveRoot("C:\\")             // 检查是否盘符根目录(Windows)
+owner, group := fs.GetFileOwner("/etc/passwd") // 获取文件所有者
 
 // hash - 哈希计算
 md5, _ := hash.Checksum("file.txt", "md5")
@@ -496,6 +515,11 @@ masked := str.Mask("13812345678", 3, 7, '*') // 138****5678
 // term - 终端交互
 choice, _ := term.ShowBasicMenuLine("菜单", []string{"选项1", "选项2"}, "请选择: ")
 password, _ := term.ReadPassword("请输入密码: ")
+
+// term - 终端检测
+isPipe := term.IsStdinPipe()                    // 检查stdin是否为管道
+isPipe, err := term.IsStdinPipeWithError()      // 高级版，返回错误
+width := term.GetSafeTerminalWidth()            // 获取安全终端宽度
 
 // fuzzy - 模糊匹配
 matches := fuzzy.Find("abc", []string{"abc", "abc123", "xyz"})
