@@ -2,9 +2,7 @@
 
 # 🛠️ Go-Kit
 
-[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=for-the-badge&logo=go)](https://golang.org/)
-[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge)](https://gitee.com/MM-Q/go-kit)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=for-the-badge&logo=go)](https://golang.org/) [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE) [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge)](https://gitee.com/MM-Q/go-kit)
 
 **一个功能丰富的Go语言工具包，提供常用的实用工具和组件**
 
